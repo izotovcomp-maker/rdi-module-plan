@@ -126,8 +126,23 @@ final class B24 {
         return ['saved' => $saved, 'isFirst' => $isFirst];
     }
 
+    /**
+     * crm.item.{add,update,get,list,fields} по умолчанию работают с `useOriginalUfNames = N`:
+     * пользовательские поля уходят и приходят в camelCase (ufCrm8OCode). Проект везде использует
+     * оригинальные имена UPPER_CASE (UF_CRM_8_O_CODE), поэтому подставляем 'Y', если вызывающий
+     * не задал значение сам. Остальные методы (в т.ч. crm.item.delete — он параметр не принимает) не трогаем.
+     * Правило: docs/agent/dev-rules.md; источник: crm/universal/index.md («Особенности имен полей»).
+     */
+    public static function withOriginalUfNames(string $method, array $params): array {
+        if (preg_match('/^crm\.item\.(add|update|get|list|fields)$/', $method) && !isset($params['useOriginalUfNames'])) {
+            $params['useOriginalUfNames'] = 'Y';
+        }
+        return $params;
+    }
+
     public function call(string $method, array $params = []): array {
         if (!$this->hasTokens()) throw new RuntimeException('B24: токенов нет — приложение не установлено');
+        $params = self::withOriginalUfNames($method, $params);
         $res = $this->doCall($method, $params);
         if (!empty($res['error']) && in_array($res['error'], ['expired_token', 'invalid_token'], true)
             && !empty($this->tokens['refresh_token'])) {
@@ -140,7 +155,7 @@ final class B24 {
     public function batch(array $commands): array {
         $cmd = [];
         foreach ($commands as $k => [$m, $p]) {
-            $cmd[$k] = $m . '?' . http_build_query($p);
+            $cmd[$k] = $m . '?' . http_build_query(self::withOriginalUfNames($m, $p));
         }
         return $this->call('batch', ['halt' => 0, 'cmd' => $cmd]);
     }
