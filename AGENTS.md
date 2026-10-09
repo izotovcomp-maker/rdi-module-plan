@@ -95,6 +95,7 @@ bundler'а, файловый store без БД (`data/`, защита `<?php exi
 ## Железные правила кода (всегда, без чтения файлов)
 
 - REST — только через `$b24 = b24(); $b24->call(...)`. **Не CRest и не прямой curl.** CRM — `crm.item.*` с `entityTypeId`, не legacy `crm.deal.*`.
+- Пользовательские поля — **только `UPPER_CASE`: `UF_CRM_8_O_CODE`**, никогда `ufCrm8OCode`. В каждом `crm.item.*` передавай `'useOriginalUfNames' => 'Y'` (по умолчанию метод отдаёт camelCase). Детали — [dev-rules](docs/agent/dev-rules.md).
 - N id → **`$b24->batch([...])` чанками по 50**, не `foreach` с `call`.
 - State — только `storeRead(FILE)` / `storeWrite(FILE, $data)` в `data/`; секреты и токены в git не кладём.
 - «Авторизован на портале Б24» ≠ «можно всё»: проверка доступа внутри приложения — на нашем коде (`accessAllows()`).
