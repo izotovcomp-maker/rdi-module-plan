@@ -11,3 +11,10 @@ const SEED = [
   { id: 2, title: 'Пример записи 2', date: '2026-10-12', amount: 85000,  status: 'WORK' },
   { id: 3, title: 'Пример записи 3', date: '2026-10-20', amount: -40000, status: 'DONE' }
 ];
+
+/* Пример текста в окне «Дебаг» (в приложении там результат api/probe-task.php). */
+const DEBUG_SAMPLE = JSON.stringify({
+  note: 'Пример. В приложении здесь будет ответ портала',
+  user: { ID: '1', NAME: 'Иван', LAST_NAME: 'Петров' },
+  fields: { UF_CRM_8_O_CODE: { type: 'string', title: 'Код объекта' } }
+}, null, 2);

@@ -40,6 +40,14 @@ function init() {
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.tabpane').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + b.dataset.tab));
   });
+  // Окно «Дебаг» (в приложении — только админам): показать текст и скопировать его в буфер.
+  const out = $('debug-output'), st = $('debug-status');
+  $('debug-btn').onclick = () => { out.value = DEBUG_SAMPLE; st.textContent = ''; $('debug-modal-overlay').hidden = false; };
+  $('debug-modal-close').onclick = () => { $('debug-modal-overlay').hidden = true; };
+  $('debug-modal-copy').onclick = () => {
+    const fb = () => { out.select(); st.textContent = document.execCommand('copy') ? 'Скопировано в буфер обмена' : 'Выдели текст и нажми Ctrl+C'; };
+    navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(out.value).then(() => { st.textContent = 'Скопировано в буфер обмена'; }, fb) : fb();
+  };
   reset();
 }
 init();

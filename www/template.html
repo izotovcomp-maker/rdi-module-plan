@@ -17,7 +17,10 @@
         <h1>Приложение</h1>
         <p class="muted">Шаблон single-tenant B24 local-app. Подмени UI на свой.</p>
       </div>
-      <button type="button" id="access-btn" class="btn-secondary" hidden>Доступ</button>
+      <div class="header-actions">
+        <button type="button" id="debug-btn" class="btn-secondary" hidden title="Данные для разработчика: скопируй и отправь в чат с ассистентом">Дебаг</button>
+        <button type="button" id="access-btn" class="btn-secondary" hidden>Доступ</button>
+      </div>
     </header>
 
     <main>
@@ -73,6 +76,21 @@
       <div class="modal-actions">
         <button type="button" id="access-modal-cancel" class="btn-secondary">Отмена</button>
         <button type="button" id="access-modal-save" class="btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="debug-modal-overlay" class="modal-overlay" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="debug-modal-title">
+      <h2 id="debug-modal-title">Дебаг</h2>
+      <p class="muted">Результат <code>api/probe-task.php</code>. Нажми «Копировать» и отправь текст ассистенту в чат.
+        Токены и секреты в тексте скрыты, но данные портала могут быть — проверь, что их можно показывать.</p>
+      <textarea id="debug-output" class="debug-output" readonly spellcheck="false"></textarea>
+      <div id="debug-status" class="muted debug-status"></div>
+      <div class="modal-actions">
+        <button type="button" id="debug-modal-close" class="btn-secondary">Закрыть</button>
+        <button type="button" id="debug-modal-rerun" class="btn-secondary">Запустить заново</button>
+        <button type="button" id="debug-modal-copy" class="btn-primary">Копировать</button>
       </div>
     </div>
   </div>

@@ -199,4 +199,44 @@
       r.addEventListener('change', function () { showMode(currentMode()); });
     });
   }
+
+  // ── дебаг-кнопка (админ) ─────────────────────────────────────────────────────
+  // Показывает результат api/probe-task.php; админ копирует текст и отдаёт ассистенту в чат.
+  // Механизм описан в README («Дебаг-кнопка»).
+  var debugBtn = $('debug-btn');
+  if (debugBtn) {
+    var debugOverlay = $('debug-modal-overlay');
+    var debugOut = $('debug-output');
+    var debugStatus = $('debug-status');
+
+    var runDebug = function () {
+      debugOut.value = 'Выполняю…';
+      debugStatus.textContent = '';
+      window.api('GET', 'api/probe.php').then(function (res) {
+        debugOut.value = res.text;
+        debugStatus.textContent = (res.ok ? 'Готово' : 'Ошибка в задаче') + ' · ' + res.ms + ' мс · ' + res.text.length + ' симв.';
+      }).catch(function (err) {
+        debugOut.value = 'Ошибка запроса: ' + err.message;
+      });
+    };
+
+    var copyDebug = function () {
+      var done = function () { debugStatus.textContent = 'Скопировано в буфер обмена'; };
+      var fallback = function () {
+        debugOut.focus(); debugOut.select();
+        try { document.execCommand('copy') ? done() : (debugStatus.textContent = 'Не удалось — выдели текст и нажми Ctrl+C'); }
+        catch (e) { debugStatus.textContent = 'Не удалось — выдели текст и нажми Ctrl+C'; }
+      };
+      // В iframe Б24 Clipboard API может быть запрещён — тогда запасной путь через execCommand.
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(debugOut.value).then(done, fallback);
+      } else { fallback(); }
+    };
+
+    if (window.APP_IS_ADMIN) debugBtn.hidden = false;
+    debugBtn.addEventListener('click', function () { debugOverlay.hidden = false; runDebug(); });
+    $('debug-modal-rerun').addEventListener('click', runDebug);
+    $('debug-modal-copy').addEventListener('click', copyDebug);
+    $('debug-modal-close').addEventListener('click', function () { debugOverlay.hidden = true; });
+  }
 })();

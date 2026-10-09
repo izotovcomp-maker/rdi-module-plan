@@ -8,13 +8,21 @@
 </head>
 <body>
 <div id="app">
-  <header>
+  <header class="header-row">
+   <div>
     <h1>НАЗВАНИЕ ПРОЕКТА</h1>
     <div class="muted">Одна фраза: что показывает приложение</div>
+   </div>
+   <div class="header-actions">
+    <!-- Кнопки, которые в приложении видят только администраторы портала -->
+    <button type="button" class="btn-secondary" id="debug-btn" title="Данные для разработчика: скопируй и отправь в чат с ассистентом">Дебаг</button>
+   </div>
+  </header>
+  <div>
     <div class="demo-banner"><b>Макет на вымышленных данных.</b> Названия и цифры придуманы, портал Битрикс24 не подключён.
       Нужно проверить: всё ли на месте, нет ли лишнего, понятны ли названия.
       <button class="btn" id="resetBtn" style="margin-left:8px">Сбросить макет</button></div>
-  </header>
+  </div>
 
   <div class="kpis" id="kpis"></div>
 
@@ -41,6 +49,20 @@
       <div class="formula">Итого = сумма по строкам</div>
     </div>
   </section>
+</div>
+
+<div id="debug-modal-overlay" class="modal-overlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="debug-modal-title">
+    <h2 id="debug-modal-title">Дебаг</h2>
+    <p class="muted">Администратор нажимает «Копировать» и отправляет текст ассистенту в чат — так ассистент видит
+      реальные данные портала (поля, примеры записей, ответы методов). В макете показан пример.</p>
+    <textarea id="debug-output" class="debug-output" readonly spellcheck="false"></textarea>
+    <div id="debug-status" class="muted debug-status"></div>
+    <div class="modal-actions">
+      <button type="button" id="debug-modal-close" class="btn-secondary">Закрыть</button>
+      <button type="button" id="debug-modal-copy" class="btn-primary">Копировать</button>
+    </div>
+  </div>
 </div>
 
 <script src="mock-data.js"></script>
