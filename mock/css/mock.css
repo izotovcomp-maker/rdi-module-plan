@@ -103,10 +103,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 /* ── M5: режимы правки ───────────────────────────────────────────── */
 /* Ячейка с inline-input (единичный режим); в групповом input readonly */
-.cell-edit { padding: 0 4px !important; display: flex; align-items: center; }
+.cell-edit { padding: 0 2px !important; display: flex; align-items: center; }
 .cell-input {
-  width: 100%; min-width: 0; font: inherit; font-family: var(--font-mono); font-size: 12px;
-  padding: 2px 4px; border: 1px solid var(--border); border-radius: 3px; background: #fff;
+  width: 100%; min-width: 0; font: inherit; font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 2px; border: 1px solid var(--border); border-radius: 3px; background: #fff;
   box-sizing: border-box; height: 24px;
 }
 .cell-input:focus { outline: none; border-color: var(--accent); }

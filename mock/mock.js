@@ -295,7 +295,7 @@ const collapsed = new Set();
 if (typeof document !== 'undefined') (function () {
 
   /* Ширина колонки календаря фиксированная (px); масштаб = дней в колонке. */
-  const COL_W = 40;
+  const COL_W = 48;
   const deal = MOCK_DATA.deals[0];
   const state = {
     step: '1w', offset: null,        /* offset — ISO-строка «Смещение» */
@@ -316,9 +316,9 @@ if (typeof document !== 'undefined') (function () {
   /* Модуль с правками — чистая effModule выше; DOM-копии больше нет. */
 
   function setGridCols(nCols) {
-    const lead = state.mode === 'group' ? '34px ' : '';
+    const lead = state.mode === 'group' ? '30px ' : '';
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(280px, 340px) 56px 96px 96px 96px 56px 56px 56px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + 'minmax(200px, 250px) 44px 100px 100px 100px 46px 46px 46px repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
   /* Ячейка редактируемого поля: input в единичном режиме (даты date, дни number);
@@ -514,7 +514,26 @@ if (typeof document !== 'undefined') (function () {
     renderBody(cols, offsetIso);
     updateGroupBar();
     updateChangesCounter();
+    ensureBarsVisible(bounds);
   }
+
+  /* Авто-прокрутка календаря к полосам (только при полном рендере, не при наборе):
+     не мешаем, если пользователь уже скроллил вручную. */
+  let hScrolledByUser = false;
+  function ensureBarsVisible(bounds) {
+    if (hScrolledByUser || !bounds.min) return;
+    const chart = $('chart');
+    const track = document.querySelector('#chartBody .row.data .gantt-track');
+    if (!track) return;
+    const ganttStart = track.offsetLeft;
+    const stepDays = stepDaysOf(state.step);
+    const firstCol = Math.floor(daysBetween(bounds.min, $('offsetInput').value || bounds.min) / stepDays);
+    const target = ganttStart + Math.max(0, firstCol - 1) * COL_W - 40;
+    chart.scrollLeft = Math.max(0, Math.min(target, chart.scrollWidth - chart.clientWidth));
+  }
+  $('chart').addEventListener('scroll', () => {
+    if ($('chart').scrollLeft > 4) hScrolledByUser = true;
+  }, { passive: true });
 
   /* Клик по заголовку колонки — сортировка (повторный клик меняет направление).
      Клик по плашке этапа — сворачивание/разворачивание его модулей. */
@@ -541,13 +560,14 @@ if (typeof document !== 'undefined') (function () {
     btn.disabled = false;
     btn.addEventListener('click', () => {
       state.step = btn.dataset.step;
+      hScrolledByUser = false;
       document.querySelectorAll('.scale-btn').forEach(b => b.classList.toggle('active', b === btn));
       render();
     });
   });
 
   /* Поле «Смещение» (M4): первая дата календаря; пусто → дефолт. */
-  $('offsetInput').addEventListener('change', render);
+  $('offsetInput').addEventListener('change', () => { hScrolledByUser = false; render(); });
 
   /* ── M5: режимы правки ─────────────────────────────────────────────── */
 
