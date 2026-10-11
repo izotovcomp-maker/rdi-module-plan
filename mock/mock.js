@@ -6,7 +6,23 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const parseD = s => { const p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
 const fmtD = d => ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2);
-const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const fmtDyy = d => fmtD(d) + '.' + String(d.getFullYear()).slice(-2);
+/* дд.мм.гг → ISO; null, если неполно или неверная дата. */
+function parseDyy(s) {
+  const m = /^(\d{2})\.(\d{2})\.(\d{2})$/.exec((s || '').trim());
+  if (!m) return null;
+  const iso = '20' + m[3] + '-' + m[2] + '-' + m[1];
+  const d = parseD(iso);
+  return (d.getDate() === +m[1] && d.getMonth() + 1 === +m[2]) ? iso : null;
+}
+/* Подпись года для верхней полосы календаря (год на первой колонке года). */
+function yearLabels(cols) {
+  return cols.map((iso, i) => {
+    const y = parseD(iso).getFullYear(), prev = i ? parseD(cols[i - 1]).getFullYear() : null;
+    return (i === 0 || prev !== y) ? String(y) : '';
+  });
+}
+const MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 const DAY_MS = 24 * 3600 * 1000;
 
 /* ── PURE: чистая логика M3/M4 (без DOM, тестируется node-скриптом) ──── */
@@ -142,7 +158,7 @@ function monthLabels(cols) {
   return cols.map((iso, i) => {
     const d = parseD(iso), prev = i ? parseD(cols[i - 1]) : null;
     return (i === 0 || prev.getMonth() !== d.getMonth())
-      ? MONTHS[d.getMonth()] + ' ' + String(d.getFullYear()).slice(-2) : '';
+      ? MONTHS[d.getMonth()] : '';
   });
 }
 
@@ -295,7 +311,7 @@ const collapsed = new Set();
 if (typeof document !== 'undefined') (function () {
 
   /* Ширина колонки календаря фиксированная (px); масштаб = дней в колонке. */
-  const COL_W = 48;
+  const COL_W = 36;
   const deal = MOCK_DATA.deals[0];
   const state = {
     step: '1w', offset: null,        /* offset — ISO-строка «Смещение» */
@@ -318,17 +334,24 @@ if (typeof document !== 'undefined') (function () {
   function setGridCols(nCols) {
     const lead = state.mode === 'group' ? '30px ' : '';
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(200px, 250px) 44px 124px 124px 124px 46px 46px 46px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + 'minmax(180px, 230px) 38px 92px 92px 92px 40px 40px 40px repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
-  /* Ячейка редактируемого поля: input в единичном режиме (даты date, дни number);
-     в групповом — тот же input, но readonly (инлайн-правка недоступна). */
+  /* Ячейка редактируемого поля: input в единичном режиме (даты — текст дд.мм.гг,
+     дни — number без спиннеров); в групповом — тот же input, но readonly. */
   function editCell(m, f) {
     const v = effValue(m, edits, f.key);
     const val = (v === undefined || v === null) ? '' : v;
     const ro = state.mode === 'group' ? ' readonly' : '';
     /* M6: ячейка с непустой правкой подсвечена жёлтым */
     const edited = edits[m.id] && Object.prototype.hasOwnProperty.call(edits[m.id], f.key);
+    if (f.type === 'date') {
+      const shown = val ? fmtDyy(parseD(val)) : '';
+      return '<div class="cell-edit' + (edited ? ' is-edited' : '') + '">' +
+        '<input class="cell-input date-input" type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг"' +
+        ' data-module="' + esc(m.id) + '" data-field="' + f.key + '" data-type="date"' +
+        ' value="' + esc(shown) + '"' + ro + '></div>';
+    }
     return '<div class="' + (f.type === 'number' ? 'num ' : '') + 'cell-edit' + (edited ? ' is-edited' : '') + '">' +
       '<input class="cell-input" type="' + f.type + '" data-module="' + esc(m.id) + '" data-field="' + f.key + '"' +
       ' value="' + esc(val) + '"' + ro + '></div>';
@@ -359,11 +382,12 @@ if (typeof document !== 'undefined') (function () {
   }
 
   function ganttHeadCells(cls, cols) {
-    const isMonths = cls === 'h-month';
-    const labels = isMonths ? monthLabels(cols) : null;
+    /* h-year — верхняя полоса годов; h-month — короткие месяцы; иначе дни */
+    const isYears = cls === 'h-year', isMonths = cls === 'h-month';
+    const labels = isYears ? yearLabels(cols) : (isMonths ? monthLabels(cols) : null);
     let out = '<div class="' + cls + ' gantt-track" style="grid-column: span ' + cols.length + '; width:' + (cols.length * COL_W) + 'px">';
-    if (isMonths) {
-      /* Подпись месяца тянется на все его колонки — не наезжает на соседнюю */
+    if (labels) {
+      /* Подпись тянется на все свои колонки — не наезжает на соседнюю */
       for (let i = 0; i < cols.length; i++) {
         if (!labels[i]) continue;
         let span = 1;
@@ -371,39 +395,49 @@ if (typeof document !== 'undefined') (function () {
         out += '<div style="position:absolute;left:' + (i * COL_W) + 'px;width:' + (span * COL_W - 4) + 'px;overflow:hidden;white-space:nowrap">' + esc(labels[i]) + '</div>';
       }
     } else {
+      /* В колонках календаря — только день: месяц и год видны выше */
       cols.forEach((iso, i) => {
-        out += '<div style="position:absolute;left:' + (i * COL_W) + 'px;width:' + COL_W + 'px;overflow:hidden;white-space:nowrap;padding-left:4px;box-sizing:border-box;border-left:1px solid var(--border)">' + fmtD(parseD(iso)) + '</div>';
+        out += '<div style="position:absolute;left:' + (i * COL_W) + 'px;width:' + COL_W + 'px;overflow:hidden;white-space:nowrap;text-align:center;box-sizing:border-box;border-left:1px solid var(--border)">' + parseD(iso).getDate() + '</div>';
       });
     }
     return out + '</div>';
   }
 
-  /* Заголовки колонок таблицы: data-sort — ключ сортировки. */
+  /* Заголовки колонок таблицы: data-sort — ключ сортировки; title — подсказка. */
   const HEAD_COLS = [
-    { label: 'З', cls: 'num', key: 'dayRun' },
-    { label: 'Рассмотр.', cls: '', key: 'check' },
-    { label: 'Разработка', cls: '', key: 'create' },
-    { label: 'К', cls: 'num', key: 'dayEdit' },
-    { label: 'О', cls: 'num', key: 'dayWait' },
-    { label: 'С', cls: 'num', key: 'dayApprove' },
-    { label: 'Р', cls: 'num', key: 'run' }
+    { label: 'З', cls: 'num', key: 'dayRun', title: 'Запуск — рабочих дней от старта до начала Рассмотрения' },
+    { label: 'Рассмотр.', cls: '', key: 'check', title: 'Дата начала Рассмотрения (стадия модуля)' },
+    { label: 'Разработка', cls: '', key: 'create', title: 'Дата завершения Разработки — конец работ по модулю' },
+    { label: 'К', cls: 'num', key: 'dayEdit', title: 'Корректировка — рабочих дней после Разработки' },
+    { label: 'О', cls: 'num', key: 'dayWait', title: 'Ожидание — рабочих дней после Корректировки' },
+    { label: 'С', cls: 'num', key: 'dayApprove', title: 'Согласование — рабочих дней после Ожидания' },
+    { label: 'Р', cls: 'num', key: 'run', title: 'Длительность разработки — календарных дней от Рассмотрения до Разработки' }
   ];
+  const NAME_TITLE = 'Название модуля: код объекта, номер, шифр раздела. Сортировка — клик по заголовку колонки.';
 
   function renderHead(cols) {
     const ind = k => sortState.key === k ? (sortState.dir === 1 ? ' ↑' : ' ↓') : '';
     const chk = state.mode === 'group' ? '<div class="h-cell chk-cell"></div>' : '';
+    /* Шапка из 3 sticky-строк: год / месяц / заголовки таблицы + дни.
+       В строках года и месяца над таблицей — пустые sticky-ячейки фона. */
     $('chartHead').innerHTML =
       '<div class="row head">' +
         chk +
-        '<div class="h-cell h-month name">Этап / модуль</div>' +
+        '<div class="h-cell h-year name"></div>' +
+        HEAD_COLS.map(() => '<div class="h-cell h-year"></div>').join('') +
+        ganttHeadCells('h-year', cols) +
+      '</div>' +
+      '<div class="row head">' +
+        chk +
+        '<div class="h-cell h-month name"></div>' +
         HEAD_COLS.map(() => '<div class="h-cell h-month"></div>').join('') +
         ganttHeadCells('h-month', cols) +
       '</div>' +
       '<div class="row head">' +
         chk +
-        '<div class="h-cell h-title name">Этап / модуль</div>' +
+        '<div class="h-cell h-title name" title="' + NAME_TITLE + '">Этап / модуль</div>' +
         HEAD_COLS.map(c =>
-          '<div class="h-cell h-title ' + c.cls + ' sort-btn" data-sort="' + c.key + '" title="Сортировать">' +
+          '<div class="h-cell h-title ' + c.cls + ' sort-btn" data-sort="' + c.key + '" title="' + c.title + '. Сортировать">' +
           c.label + ind(c.key) + '</div>').join('') +
         ganttHeadCells('h-title', cols) +
       '</div>';
@@ -460,6 +494,7 @@ if (typeof document !== 'undefined') (function () {
   function updateChangesCounter() {
     const n = countPending(edits);
     $('changesCounter').textContent = 'Изменений: ' + n;
+    updateOver99();
     updateValidation(n);
   }
 
@@ -540,11 +575,12 @@ if (typeof document !== 'undefined') (function () {
     const chart = $('chart');
     const track = document.querySelector('#chartBody .row.data .gantt-track');
     if (!track) return;
-    const ganttStart = track.offsetLeft;
+    const ganttStart = track.offsetLeft;                 // x начала зоны Ганта
     const stepDays = stepDaysOf(state.step);
-    const firstCol = Math.floor(daysBetween(bounds.min, $('offsetInput').value || bounds.min) / stepDays);
-    const target = ganttStart + Math.max(0, firstCol - 1) * COL_W - 40;
-    chart.scrollLeft = Math.max(0, Math.min(target, chart.scrollWidth - chart.clientWidth));
+    const firstCol = Math.max(0, Math.floor(daysBetween(bounds.min, $('offsetInput').value || bounds.min) / stepDays));
+    const barX = ganttStart + firstCol * COL_W;          // где начинается самая ранняя полоса
+    /* Скроллим, только если полосы НЕ видны; иначе возвращаем вид на таблицу */
+    chart.scrollLeft = barX > chart.clientWidth ? Math.min(barX - 250, chart.scrollWidth - chart.clientWidth) : 0;
   }
   $('chart').addEventListener('scroll', () => {
     if ($('chart').scrollLeft > 4) hScrolledByUser = true;
@@ -608,14 +644,22 @@ if (typeof document !== 'undefined') (function () {
     if (inp.classList.contains('cell-input')) {
       const m = deal.modules.find(x => x.id === inp.dataset.module);
       const key = inp.dataset.field;
-      if (m) {
+      if (!m) return;
+      if (inp.dataset.type === 'date') {
+        /* Даты дд.мм.гг: в карту пишем ISO только когда введено полностью;
+           частичный ввод карту не трогает (Гант показывает последнее валидное). */
+        const iso = parseDyy(inp.value);
+        if (inp.value.trim() === '') setEdit(m, edits, key, '');
+        else if (iso) setEdit(m, edits, key, iso);
+        else return;
+      } else {
         const v = inp.type === 'number' && inp.value !== '' ? Number(inp.value) : inp.value;
         setEdit(m, edits, key, v);
-        const cell = inp.closest('.cell-edit');
-        if (cell) cell.classList.toggle('is-edited',
-          !!(edits[m.id] && Object.prototype.hasOwnProperty.call(edits[m.id], key)));
-        updateGantt();
       }
+      const cell = inp.closest('.cell-edit');
+      if (cell) cell.classList.toggle('is-edited',
+        !!(edits[m.id] && Object.prototype.hasOwnProperty.call(edits[m.id], key)));
+      updateGantt();
       return;
     }
     /* Чекбокс модуля (групповой режим) */
@@ -634,17 +678,53 @@ if (typeof document !== 'undefined') (function () {
     }
   });
 
+  /* Уход с поля даты: нормализуем показ к дд.мм.гг эффективного значения
+     (частичный ввод откатывается к последнему валидному). */
+  $('chartBody').addEventListener('focusout', e => {
+    const inp = e.target;
+    if (!inp.classList || !inp.classList.contains('date-input')) return;
+    const m = deal.modules.find(x => x.id === inp.dataset.module);
+    if (!m) return;
+    const iso = effValue(m, edits, inp.dataset.field);
+    inp.value = iso ? fmtDyy(parseD(iso)) : '';
+  });
+
+  /* Подсветка длительностей > 99 дней (не блокирует отправку — просто заметно). */
+  function updateOver99() {
+    const bad = new Set();
+    deal.modules.forEach(m => {
+      const eff = effModule(m, edits);
+      DUR_KEYS.forEach(k => { if (typeof eff[k] === 'number' && eff[k] > 99) bad.add(m.id + '|' + k); });
+    });
+    document.querySelectorAll('#chartBody .row.module').forEach(row => {
+      row.querySelectorAll('.cell-edit .cell-input').forEach(inp => {
+        inp.closest('.cell-edit').classList.toggle('is-over99',
+          bad.has(row.dataset.module + '|' + inp.dataset.field));
+      });
+    });
+    DUR_KEYS.forEach(k => {
+      const el = $('gw-' + k);
+      if (el) el.classList.toggle('is-over99', Number(el.value) > 99);
+    });
+  }
+
   /* Групповое применение: только заполненные поля окна → всем отмеченным. */
   $('gwApply').addEventListener('click', () => {
     const win = {};
     EDIT_FIELDS.forEach(f => {
       const el = $('gw-' + f.key);
-      if (el && el.value !== '') win[f.key] = f.type === 'number' ? Number(el.value) : el.value;
+      if (!el || el.value === '') return;
+      if (f.type === 'date') { const iso = parseDyy(el.value); if (iso) win[f.key] = iso; }
+      else win[f.key] = Number(el.value);
     });
     const targets = deal.modules.filter(m => state.checked.has(m.id));
     applyGroup(targets, edits, win);
     EDIT_FIELDS.forEach(f => { const el = $('gw-' + f.key); if (el) el.value = ''; });
     render();
+  });
+  /* Окно группового ввода: красная рамка >99 сразу при наборе. */
+  $('groupEntry').addEventListener('input', e => {
+    if (e.target.classList.contains('cell-input') || e.target.tagName === 'INPUT') updateOver99();
   });
 
   /* ── M7: отправка/отмена ───────────────────────────────────────────── */

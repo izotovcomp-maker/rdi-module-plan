@@ -62,17 +62,18 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .row > div { height: var(--row-h); padding: 0 10px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: calc(var(--row-h) - 1px); }
 .row > div.num { text-align: right; font-family: var(--font-mono); }
 
-/* ── Sticky: шапка (2 строки) + заголовки таблицы ────────────────── */
+/* ── Sticky: шапка (3 строки: год / месяц / заголовки) + заголовки таблицы ── */
 .h-cell { background: var(--paper-2); font-weight: 600; color: var(--ink); font-size: 12px; }
-.h-month { position: sticky; top: 0; z-index: 10; height: 26px !important; line-height: 26px !important; border-bottom: 1px solid var(--ink) !important; }
-.h-title { position: sticky; top: 26px; z-index: 10; height: 28px !important; line-height: 28px !important; border-bottom: 1px solid var(--ink) !important; }
+.h-year  { position: sticky; top: 0;  z-index: 10; height: 18px !important; line-height: 18px !important; border-bottom: 1px solid var(--border) !important; }
+.h-month { position: sticky; top: 18px; z-index: 10; height: 20px !important; line-height: 20px !important; border-bottom: 1px solid var(--ink) !important; }
+.h-title { position: sticky; top: 38px; z-index: 10; height: 26px !important; line-height: 26px !important; border-bottom: 1px solid var(--ink) !important; }
 /* Sticky колонка названий при горизонтальном скролле */
 .name {
   position: sticky; left: 0; z-index: 5;
   background: var(--card-bg); border-right: 1px solid var(--ink);
 }
 /* Угол (названия в шапке): sticky сразу в двух осях */
-.h-month.name, .h-title.name { z-index: 20; }
+.h-year.name, .h-month.name, .h-title.name { z-index: 20; }
 
 /* Строки данных — единая высота (--row-h задаётся в .row, одинакова для этапов и модулей) */
 .row.data:hover > div { background: var(--row-hover); }
@@ -95,9 +96,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   position: absolute; top: 50%; transform: translateY(-50%);
   height: 12px; border-radius: 3px; border: 1px solid var(--ink);
 }
-.gantt-bar.accent { background: var(--accent-bg); border-color: var(--accent); z-index: 2; }
+/* Сплошная заливка — полосы не должны сливаться с фоном */
+.gantt-bar.accent { background: var(--accent); border-color: var(--ink); z-index: 2; }
 /* Вторичные полосы — другой акцент (warn), тоньше основной */
-.gantt-bar.secondary { background: var(--warn-bg); border-color: var(--warn); height: 8px; z-index: 1; }
+.gantt-bar.secondary { background: var(--warn); border-color: var(--ink); height: 8px; z-index: 1; }
 /* Маркер «Сегодня» — вертикальная линия */
 .gantt-today { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--exp); z-index: 3; }
 
@@ -109,10 +111,16 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   padding: 1px 2px; border: 1px solid var(--border); border-radius: 3px; background: #fff;
   box-sizing: border-box; height: 24px;
 }
+/* Числовые поля дней: без спиннеров */
+.cell-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.cell-input[type=number]::-webkit-outer-spin-button,
+.cell-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .cell-input:focus { outline: none; border-color: var(--accent); }
 .cell-input[readonly] { background: var(--paper-2); color: var(--muted); cursor: not-allowed; }
 /* M6: ячейка с несохранённой правкой подсвечена жёлтым */
 .cell-edit.is-edited, .cell-edit.is-edited .cell-input { background: var(--warn-bg); }
+/* Длительность больше 99 дней — красная рамка (не блокирует, просто заметно) */
+.cell-edit.is-over99 .cell-input, .cell-input.is-over99 { border: 2px solid var(--exp); }
 
 /* Колонка чекбоксов (групповой режим): sticky слева, левее sticky-названий */
 .chk-cell {
