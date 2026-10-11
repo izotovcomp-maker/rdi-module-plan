@@ -3,52 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Макет — НАЗВАНИЕ ПРОЕКТА</title>
+<title>Макет — График модулей</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/mock.css">
 </head>
 <body>
 <div id="app">
-  <header class="header-row">
-   <div>
-    <h1>НАЗВАНИЕ ПРОЕКТА</h1>
-    <div class="muted">Одна фраза: что показывает приложение</div>
-   </div>
-   <div class="header-actions">
-    <!-- Кнопки, которые в приложении видят только администраторы портала -->
-    <button type="button" class="btn-secondary" id="debug-btn" title="Данные для разработчика: скопируй и отправь в чат с ассистентом">Дебаг</button>
-   </div>
+
+  <!-- Зона 1: панель инструментов (sticky сверху) -->
+  <header class="toolbar" id="toolbar">
+    <div class="toolbar-title">
+      <h1>График модулей</h1>
+      <div class="muted">Макет каркаса (M2): зоны, sticky, вымышленные данные</div>
+    </div>
+    <div class="toolbar-controls">
+      <!-- Тумблер режима правки (M5): строго один режим активен -->
+      <div class="mode-toggle" title="Режим правки">
+        <button type="button" class="mode-btn active" data-mode="single">Единично</button>
+        <button type="button" class="mode-btn" data-mode="group">Группово</button>
+      </div>
+      <div class="changes-counter" id="changesCounter">Изменений: 0</div>
+      <button type="button" class="btn-secondary" id="sendBtn" disabled title="Включится в M7">Отправить изменения</button>
+      <button type="button" class="btn-secondary" id="cancelBtn" disabled title="Включится в M7">Отменить изменения</button>
+      <!-- Переключатель масштаба Ганта (M4): шаг колонки календаря -->
+      <div class="scale-toggle" role="group" aria-label="Масштаб Ганта">
+        <button type="button" class="scale-btn" data-step="1d">1д</button>
+        <button type="button" class="scale-btn active" data-step="1w">1н</button>
+        <button type="button" class="scale-btn" data-step="2w">2н</button>
+        <button type="button" class="scale-btn" data-step="3w">3н</button>
+        <button type="button" class="scale-btn" data-step="4w">4н</button>
+      </div>
+      <!-- Смещение (M4): первая дата календаря; пусто — дефолт min(дат) − шаг -->
+      <label class="offset-field">Смещение
+        <input type="date" id="offsetInput" value="">
+      </label>
+      <button type="button" class="btn-secondary" id="debug-btn" title="Данные для разработчика: скопируй и отправь в чат с ассистентом">Дебаг</button>
+    </div>
   </header>
-  <div>
-    <div class="demo-banner"><b>Макет на вымышленных данных.</b> Названия и цифры придуманы, портал Битрикс24 не подключён.
-      Нужно проверить: всё ли на месте, нет ли лишнего, понятны ли названия.
-      <button class="btn" id="resetBtn" style="margin-left:8px">Сбросить макет</button></div>
+
+  <!-- Панель ошибок валидации (M7): список виден, пока есть ошибки -->
+  <div class="error-panel" id="errorPanel" hidden></div>
+
+  <!-- Обязательная плашка макета -->
+  <div class="demo-banner"><b>МАКЕТ — данные вымышлены.</b> Портал Битрикс24 не подключён, названия и цифры придуманы.
+    Проверяем каркас: панель и шапки прилипают при прокрутке вниз, колонка названий — при прокрутке вправо.
+    <button class="btn" id="resetBtn" style="margin-left:8px">Сбросить макет</button></div>
+
+  <!-- Окно группового ввода (M5): видно только в режиме «Группово».
+       Пустые поля пропускаются — применяются только заполненные. -->
+  <div class="group-entry" id="groupEntry" hidden>
+    <span class="group-entry-title">Групповой ввод:</span>
+    <label>З <input type="number" id="gw-dayRun"></label>
+    <label>Рассмотрение <input type="date" id="gw-check"></label>
+    <label>Разработка <input type="date" id="gw-create"></label>
+    <label>К <input type="number" id="gw-dayEdit"></label>
+    <label>О <input type="number" id="gw-dayWait"></label>
+    <label>С <input type="number" id="gw-dayApprove"></label>
+    <button type="button" class="btn-primary" id="gwApply" disabled>Применить к отмеченным (0)</button>
   </div>
 
-  <div class="kpis" id="kpis"></div>
-
-  <nav class="tabs" id="tabs">
-    <button class="tab active" data-tab="list">Список</button>
-    <button class="tab" data-tab="explain">Как это считается</button>
-  </nav>
-
-  <section id="tab-list" class="tabpane">
-    <div class="filters">
-      <label>Статус <select id="fStatus"><option value="">Все</option></select></label>
-      <label>Поиск <input type="text" id="fText" placeholder="например: аванс"></label>
+  <!-- Зона 2+3: единый скролл-контейнер, слева таблица, справа Гант.
+       Одна вертикальная прокрутка на обе зоны, строки выровнены (общая сетка колонок). -->
+  <div class="chart" id="chart">
+    <div class="chart-inner" id="chartInner">
+      <!-- шапка: 2 строки (месяцы + даты) и заголовки таблицы — рисует mock.js -->
+      <div id="chartHead"></div>
+      <div id="chartBody"></div>
     </div>
-    <div class="card" style="margin-top:14px">
-      <h2>Список</h2>
-      <div class="tbl-wrap" id="list"></div>
-    </div>
-  </section>
+  </div>
 
-  <section id="tab-explain" class="tabpane hidden">
-    <div class="card">
-      <h2>Откуда берутся цифры</h2>
-      <p style="margin-top:0">Опишите простыми словами, какие данные Б24 используются и по какой формуле считаются итоги.</p>
-      <div class="formula">Итого = сумма по строкам</div>
-    </div>
-  </section>
 </div>
 
 <div id="debug-modal-overlay" class="modal-overlay" hidden>
@@ -64,6 +87,21 @@
     </div>
   </div>
 </div>
+
+<!-- Диалог подтверждения (M7): отправка / отмена правок -->
+<div id="confirm-overlay" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <h2 id="confirm-title"></h2>
+    <p class="muted" id="confirm-text"></p>
+    <div class="modal-actions">
+      <button type="button" id="confirm-no" class="btn-secondary">Отмена</button>
+      <button type="button" id="confirm-yes" class="btn-primary">Да</button>
+    </div>
+  </div>
+</div>
+
+<!-- Тост (M7): автоскрытие 2.5 с -->
+<div id="toast" class="toast" hidden></div>
 
 <script src="mock-data.js"></script>
 <script src="mock.js"></script>

@@ -1,0 +1,167 @@
+/* Каркас макета «График модулей» (задача M2): 3 зоны, sticky, единый скролл.
+   Токены — в css/style.css (копия www/css/style.css). Новые цвета — только через них.
+   Схема: одна общая сетка колонок (--grid-cols задаёт mock.js), поэтому таблица
+   и Гант выровнены по строкам и имеют ОДНУ вертикальную прокрутку (.chart). */
+
+body {
+  overflow: hidden;             /* скроллит только .chart, не страница */
+  height: 100vh;
+}
+
+#app {
+  max-width: none;              /* график широкий — не ограничиваем 1400px */
+  padding: 0 20px 24px;
+  display: flex; flex-direction: column;
+  height: 100vh;                /* скроллит только .chart, не страница */
+}
+
+/* ── Зона 1: панель инструментов ─────────────────────────────────── */
+.toolbar {
+  position: sticky; top: 0; z-index: 30;   /* прилипает к верху при любом скролле */
+  background: var(--card-bg);
+  border-bottom: 2px solid var(--ink);
+  padding: 10px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.toolbar-title h1 { font-size: 20px; margin: 0; }
+.toolbar-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.mode-toggle, .scale-toggle { display: flex; border: 1.5px solid var(--ink); border-radius: 6px; overflow: hidden; }
+.mode-btn, .scale-btn {
+  font: inherit; font-family: var(--font-mono); font-size: 13px;
+  padding: 5px 12px; border: none; background: #fff; cursor: pointer;
+}
+.mode-btn + .mode-btn, .scale-btn + .scale-btn { border-left: 1px solid var(--border); }
+.mode-btn.active, .scale-btn.active { background: var(--ink); color: #fff; }
+.mode-btn:disabled, .scale-btn:disabled { cursor: not-allowed; opacity: .55; }
+.mode-btn.active:disabled, .scale-btn.active:disabled { background: var(--ink); color: #fff; opacity: .8; }
+
+.changes-counter {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  background: var(--paper-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 12px; white-space: nowrap;
+}
+.offset-field { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 2px; }
+.offset-field input { font-size: 13px; padding: 4px 8px; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+
+/* ── Зона 2+3: единый скролл-контейнер ───────────────────────────── */
+.chart {
+  margin-top: 12px;
+  overflow: auto;               /* ЕДИНСТВЕННЫЙ скролл: вертикаль + горизонталь */
+  flex: 1 1 auto;
+  min-height: 0;                /* иначе flex-элемент растёт по контенту, скролл уходит на body */
+  border: 1px solid var(--ink); border-radius: 6px;
+  background: var(--card-bg);
+}
+.chart-inner { width: max-content; min-width: 100%; }
+
+/* Общая сетка строк: колонки задаёт --grid-cols (имя + 7 колонок таблицы + N ячеек Ганта) */
+.row { display: grid; grid-template-columns: var(--grid-cols); --row-h: 32px; }
+.row > div { height: var(--row-h); padding: 0 10px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: calc(var(--row-h) - 1px); }
+.row > div.num { text-align: right; font-family: var(--font-mono); }
+
+/* ── Sticky: шапка (2 строки) + заголовки таблицы ────────────────── */
+.h-cell { background: var(--paper-2); font-weight: 600; color: var(--ink); font-size: 12px; }
+.h-month { position: sticky; top: 0; z-index: 10; height: 26px !important; line-height: 26px !important; border-bottom: 1px solid var(--ink) !important; }
+.h-title { position: sticky; top: 26px; z-index: 10; height: 28px !important; line-height: 28px !important; border-bottom: 1px solid var(--ink) !important; }
+/* Sticky колонка названий при горизонтальном скролле */
+.name {
+  position: sticky; left: 0; z-index: 5;
+  background: var(--card-bg); border-right: 1px solid var(--ink);
+}
+/* Угол (названия в шапке): sticky сразу в двух осях */
+.h-month.name, .h-title.name { z-index: 20; }
+
+/* Строки данных — единая высота (--row-h задаётся в .row, одинакова для этапов и модулей) */
+.row.data:hover > div { background: var(--row-hover); }
+.row.data .name { text-align: left; }
+.row.stage { cursor: pointer; user-select: none; }
+.row.stage > div { background: var(--paper-3); font-weight: 700; color: var(--ink); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.row.stage .name { background: var(--paper-3); }
+.stage-toggle { display: inline-block; width: 1em; text-align: center; }
+.muted-note { color: var(--muted); }
+
+/* Сортировка: заголовки-кнопки и индикатор направления */
+.sort-btn { cursor: pointer; user-select: none; }
+.sort-btn:hover { color: var(--accent); }
+
+/* Гант: ячейки календаря + полосы */
+.gantt-track { position: relative; padding: 0 !important; }
+.gantt-cell { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
+.h-month.gantt-track, .h-title.gantt-track { padding: 0 10px !important; }
+.gantt-bar {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  height: 12px; border-radius: 3px; border: 1px solid var(--ink);
+}
+.gantt-bar.accent { background: var(--accent-bg); border-color: var(--accent); z-index: 2; }
+/* Вторичные полосы — другой акцент (warn), тоньше основной */
+.gantt-bar.secondary { background: var(--warn-bg); border-color: var(--warn); height: 8px; z-index: 1; }
+/* Маркер «Сегодня» — вертикальная линия */
+.gantt-today { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--exp); z-index: 3; }
+
+/* ── M5: режимы правки ───────────────────────────────────────────── */
+/* Ячейка с inline-input (единичный режим); в групповом input readonly */
+.cell-edit { padding: 0 4px !important; display: flex; align-items: center; }
+.cell-input {
+  width: 100%; min-width: 0; font: inherit; font-family: var(--font-mono); font-size: 12px;
+  padding: 2px 4px; border: 1px solid var(--border); border-radius: 3px; background: #fff;
+  box-sizing: border-box; height: 24px;
+}
+.cell-input:focus { outline: none; border-color: var(--accent); }
+.cell-input[readonly] { background: var(--paper-2); color: var(--muted); cursor: not-allowed; }
+/* M6: ячейка с несохранённой правкой подсвечена жёлтым */
+.cell-edit.is-edited, .cell-edit.is-edited .cell-input { background: var(--warn-bg); }
+
+/* Колонка чекбоксов (групповой режим): sticky слева, левее sticky-названий */
+.chk-cell {
+  position: sticky; left: 0; z-index: 6;
+  background: var(--card-bg); border-right: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px !important;
+}
+.row.stage .chk-cell, .row.stage .chk-cell * { background: var(--paper-3); }
+.h-cell.chk-cell { z-index: 21; }
+/* В групповом режиме sticky-названия сдвигаются на ширину колонки чекбоксов */
+#chartInner.group-mode .name { left: 34px; }
+#chartInner.group-mode .row.stage .name { background: var(--paper-3); }
+
+/* Окно группового ввода над графиком (видно только в «Группово») */
+.group-entry {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--paper-2); border: 1.5px solid var(--ink); border-radius: 6px;
+  padding: 8px 12px; margin-top: 12px;
+}
+.group-entry[hidden] { display: none; }
+.group-entry-title { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.group-entry label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 2px; }
+.group-entry input { font-size: 13px; padding: 4px 8px; width: 110px; }
+
+/* ── M7: отправка/отмена — валидация, панель ошибок, тост ────────── */
+/* Модуль с ошибками: все ячейки подсвечены красным */
+.row.module.is-error > div { background: var(--exp-bg); }
+.row.module.is-error .name { color: var(--exp); }
+.row.module.is-error .cell-input { background: #fff; }
+/* Ячейка с ошибочным полем — красная рамка поверх красной строки */
+.cell-edit.is-error, .cell-edit.is-error .cell-input { background: var(--exp-bg); }
+.cell-edit.is-error .cell-input { border-color: var(--exp); }
+.cell-edit.is-error { border-right: 2px solid var(--exp); }
+
+/* Список ошибок под панелью инструментов */
+.error-panel {
+  margin-top: 12px; padding: 8px 14px;
+  background: var(--exp-bg); border: 1.5px solid var(--exp); border-radius: 6px;
+  color: var(--exp); font-size: 13px;
+}
+.error-panel[hidden] { display: none; }
+.error-panel ul { margin: 6px 0 0; padding-left: 20px; }
+
+/* Тост: небольшой блок с автоскрытием */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; font-size: 14px;
+  padding: 10px 20px; border-radius: 6px; z-index: 60;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
+}
+.toast[hidden] { display: none; }
