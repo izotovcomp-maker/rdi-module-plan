@@ -90,7 +90,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* Гант: ячейки календаря + полосы */
 .gantt-track { position: relative; padding: 0 !important; }
 .gantt-cell { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
-.h-month.gantt-track, .h-title.gantt-track { padding: 0 10px !important; }
+.h-month.gantt-track, .h-title.gantt-track { padding: 0 10px !important; position: sticky; } /* sticky вместо relative: иначе top:26px от .h-title сдвигает трек вниз */
 .gantt-bar {
   position: absolute; top: 50%; transform: translateY(-50%);
   height: 12px; border-radius: 3px; border: 1px solid var(--ink);

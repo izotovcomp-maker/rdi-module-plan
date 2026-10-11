@@ -318,7 +318,7 @@ if (typeof document !== 'undefined') (function () {
   function setGridCols(nCols) {
     const lead = state.mode === 'group' ? '30px ' : '';
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(200px, 250px) 44px 100px 100px 100px 46px 46px 46px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + 'minmax(200px, 250px) 44px 124px 124px 124px 46px 46px 46px repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
   /* Ячейка редактируемого поля: input в единичном режиме (даты date, дни number);
@@ -345,21 +345,36 @@ if (typeof document !== 'undefined') (function () {
     return html;
   }
 
-  function ganttCells(cols, offsetIso) {
+  /* Трек Ганта — ОДИН grid-элемент, который должен занимать ВСЕ колонки
+     календаря (grid-column: span N). Без span он встаёт в первую колонку
+     48px, а полосы (position:absolute) выпадают из строки. barsHtml —
+     полосы модуля, они рисуются ВНУТРИ трека (position:relative). */
+  function ganttCells(cols, offsetIso, barsHtml) {
     const ti = todayIndex(cols, state.step);
-    let out = '<div class="gantt-track">';
+    let out = '<div class="gantt-track" style="grid-column: span ' + cols.length + '; width:' + (cols.length * COL_W) + 'px">';
     cols.forEach((_, i) => { out += '<div class="gantt-cell" style="left:' + (i * COL_W) + 'px;width:' + COL_W + 'px"></div>'; });
     if (ti >= 0) out += '<div class="gantt-today" style="left:' + (ti * COL_W + COL_W / 2) + 'px" title="Сегодня"></div>';
+    out += barsHtml || '';
     return out + '</div>';
   }
 
   function ganttHeadCells(cls, cols) {
-    const labels = cls === 'h-month' ? monthLabels(cols) : null;
-    let out = '<div class="' + cls + ' gantt-track">';
-    cols.forEach((iso, i) => {
-      out += '<div style="position:absolute;left:' + (i * COL_W) + 'px;width:' + COL_W + 'px">' +
-        (labels ? labels[i] : fmtD(parseD(iso))) + '</div>';
-    });
+    const isMonths = cls === 'h-month';
+    const labels = isMonths ? monthLabels(cols) : null;
+    let out = '<div class="' + cls + ' gantt-track" style="grid-column: span ' + cols.length + '; width:' + (cols.length * COL_W) + 'px">';
+    if (isMonths) {
+      /* Подпись месяца тянется на все его колонки — не наезжает на соседнюю */
+      for (let i = 0; i < cols.length; i++) {
+        if (!labels[i]) continue;
+        let span = 1;
+        while (i + span < cols.length && !labels[i + span]) span++;
+        out += '<div style="position:absolute;left:' + (i * COL_W) + 'px;width:' + (span * COL_W - 4) + 'px;overflow:hidden;white-space:nowrap">' + esc(labels[i]) + '</div>';
+      }
+    } else {
+      cols.forEach((iso, i) => {
+        out += '<div style="position:absolute;left:' + (i * COL_W) + 'px;width:' + COL_W + 'px;overflow:hidden;white-space:nowrap;padding-left:4px;box-sizing:border-box;border-left:1px solid var(--border)">' + fmtD(parseD(iso)) + '</div>';
+      });
+    }
     return out + '</div>';
   }
 
@@ -426,7 +441,7 @@ if (typeof document !== 'undefined') (function () {
           '<div class="name" title="' + esc(m.title) + '">' + esc(m.num) + ' · ' + esc(m.sname) + '</div>' +
           EDIT_FIELDS.map(f => editCell(m, f)).join('') +
           '<div class="num run-cell">' + esc(cellValue(m, 'run')) + '</div>' +
-          ganttCells(cols, offsetIso) + barsFor(m, offsetIso, cols) + '</div>';
+          ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols)) + '</div>';
       }
     });
     $('chartBody').innerHTML = html;
@@ -495,7 +510,7 @@ if (typeof document !== 'undefined') (function () {
       const raw = deal.modules.find(x => x.id === row.dataset.module);
       if (!raw) return;
       const m = effModule(raw, edits);
-      row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso) + barsFor(m, offsetIso, cols));
+      row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols)));
       const run = row.querySelector('.run-cell');       /* производное «Р» тоже живое */
       if (run) run.textContent = cellValue(m, 'run');
     });
