@@ -84,7 +84,7 @@ function tableRows(stages, modules, collapsed) {
 /* Шаг масштаба → число дней в колонке. */
 const STEP_MAP = { '1d': 1, '1w': 7, '2w': 14, '3w': 21, '4w': 28 };
 /* Порядок стадий воронки (для сортировки по статусу). */
-const STATUS_ORDER = ['Зап', 'Расм', 'Разр', 'Корр', 'Ожид', 'Согл', 'Заверш'];
+const STATUS_ORDER = ['Зап', 'Расм', 'Разр', 'Корр', 'Ожид', 'Согл', 'Завр', 'Анну'];
 function stepDaysOf(step) { return STEP_MAP[step] || 7; }
 
 const isoOf = d => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
@@ -131,10 +131,31 @@ function barColumns(offsetIso, step, nCols, startIso, endIso) {
    Запуск (check−dayRun → check), Корректировка (create → +dayEdit),
    Ожидание (после корректировки → +dayWait), Согласование (→ +dayApprove).
    Модуль без дат — полос нет. */
-function barsForModule(m) {
-  if (!m.check || !m.create) return [];
-  const out = [{ key: 'run', kind: 'secondary', title: 'Запуск', start: addDaysIso(m.check, -m.dayRun), end: m.check }];
-  out.push({ key: 'main', kind: 'accent', title: 'Рассмотрение → Разработка', start: m.check, end: m.create });
+/* 6 диапазонов стадий модуля (правила из ТЗ):
+   Запуск:       dstart этапа (UF_CRM_10_MST_DSTART) → runD (UF_CRM_14_MOD_RUN)
+   Рассмотрение: runD → check (UF_CRM_14_MOD_CHECK)
+   Разработка:   check → create (UF_CRM_14_MOD_CREATE)
+   Корректировка:create → editD (= create + dayEdit; на портале дату пишет БП,
+                              в макете считаем из длительности — правка дней
+                              двигает полосы живьём)
+   Ожидание:     editD → waitD (+dayWait);  Согласование: waitD → apprD (+dayApprove).
+   runD: хранимая m.runD; если dayRun правлен (см. edits), пересчитывается
+   из dstart + dayRun (передавай eff-модуль и stages). */
+function barsForModule(m, stages, edits) {
+  const st = (stages || []).find(s => s.id === (m.parentStageId || m.stageId));
+  const dstart = st && st.dstart;
+  const dayRunEdited = edits && edits[m.id] && Object.prototype.hasOwnProperty.call(edits[m.id], 'dayRun');
+  const runD = (dstart && (dayRunEdited || !m.runD)) ? addDaysIso(dstart, m.dayRun || 0) : (m.runD || null);
+  if (!m.check || !m.create) {
+    /* Модуль без дат: показываем только Запуск, если он есть */
+    const out = [];
+    if (dstart && runD) out.push({ key: 'run', kind: 'secondary', title: 'Запуск', start: dstart, end: runD });
+    return out;
+  }
+  const out = [];
+  if (runD) out.push({ key: 'run', kind: 'secondary', title: 'Запуск', start: dstart, end: runD });
+  if (runD && runD <= m.check) out.push({ key: 'ras', kind: 'secondary', title: 'Рассмотрение', start: runD, end: m.check });
+  out.push({ key: 'main', kind: 'accent', title: 'Разработка', start: m.check, end: m.create });
   const editEnd = addDaysIso(m.create, m.dayEdit);
   if (m.dayEdit > 0) out.push({ key: 'edit', kind: 'secondary', title: 'Корректировка', start: m.create, end: editEnd });
   const waitEnd = addDaysIso(editEnd, m.dayWait);
@@ -146,9 +167,9 @@ function barsForModule(m) {
 
 /* Мин/макс дат всех полос списка модулей (для дефолтного смещения и ширины сетки).
    null, если дат нет ни у одного модуля. */
-function moduleDateBounds(mods) {
+function moduleDateBounds(mods, stages, edits) {
   let min = null, max = null;
-  mods.forEach(m => barsForModule(m).forEach(b => {
+  mods.forEach(m => barsForModule(m, stages, edits).forEach(b => {
     if (!min || b.start < min) min = b.start;
     if (!max || b.end > max) max = b.end;
   }));
@@ -337,7 +358,7 @@ if (typeof document !== 'undefined') (function () {
   function setGridCols(nCols) {
     const lead = state.mode === 'group' ? '30px ' : '';
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(170px, 210px) 64px 36px 84px 84px 84px 34px 34px 34px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + 'minmax(170px, 210px) 46px 36px 84px 84px 84px 34px 34px 34px repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
   /* Ячейка редактируемого поля: input в единичном режиме (даты — текст дд.мм.гг,
@@ -366,19 +387,19 @@ if (typeof document !== 'undefined') (function () {
   /* Полоса модуля в px: позиция/ширина от чистой barColumns.
      dim — завершённый (до первого незавершённого или все завершены): светлее.
      withFlag — все модули завершены и у этого правый конец: флаг 🏁. */
-  function barsFor(m, offsetIso, cols, dim, withFlag) {
-    const html = barsForModule(m).map(b => {
+  function barsFor(m, offsetIso, cols, dim, withFlag, icon) {
+    const html = barsForModule(m, deal.stages, edits).map(b => {
       const p = barColumns(offsetIso, state.step, cols.length, b.start, b.end);
       if (!p.visible) return '';
       return '<div class="gantt-bar ' + b.kind + (dim ? ' dimmed' : '') + '" style="left:' + (p.start * COL_W) + 'px;width:' +
         (p.width * COL_W - 2) + 'px" title="' + esc(b.title) + '"></div>';
     }).join('');
-    const flag = withFlag && barsForModule(m).length
+    const flag = withFlag && barsForModule(m, deal.stages, edits).length
       ? (() => {
-          const bars = barsForModule(m);
+          const bars = barsForModule(m, deal.stages, edits);
           const last = bars[bars.length - 1];
           const p = barColumns(offsetIso, state.step, cols.length, last.start, last.end);
-          return p.visible ? '<div class="gantt-flag" style="left:' + (p.start * COL_W + p.width * COL_W) + 'px" title="Все модули завершены">🏁</div>' : '';
+          return p.visible ? '<div class="gantt-flag" style="left:' + (p.start * COL_W + p.width * COL_W) + 'px" title="' + (icon === '🗑️' ? 'Работы аннулированы' : 'Все модули завершены') + '">' + icon + '</div>' : '';
         })()
       : '';
     return html + flag;
@@ -468,21 +489,23 @@ if (typeof document !== 'undefined') (function () {
     return '<div class="chk-cell"><input type="checkbox" class="stage-chk" data-stage="' + esc(st.id) + '"' + attr + ind + '></div>';
   }
 
-  /* Активный модуль = первый незавершённый (в порядке данных). Всё, что раньше
-     его, — завершённое: полосы светлее. Если завершены все — флаг 🏁 в конце. */
+  /* Завершённые (низкий акцент): стадии Завр и Анну. Активный — первый
+     незавершённый. Если завершены все — иконка в конце последней полосы:
+     🗑️, если была хоть одна аннуляция, иначе 🏁. */
   function moduleEmphasis() {
+    const anyAnnul = deal.modules.some(m => m.status === 'Анну');
     const activeIdx = deal.modules.findIndex(m => !isDoneStatus(m));
     const allDone = activeIdx === -1;
     let flagId = null;
     if (allDone) {
       let maxEnd = null;
-      deal.modules.forEach(m => barsForModule(m).forEach(b => {
+      deal.modules.forEach(m => barsForModule(m, deal.stages, edits).forEach(b => {
         if (maxEnd === null || b.end > maxEnd) { maxEnd = b.end; flagId = m.id; }
       }));
     }
     return {
-      allDone, flagId,
-      dimmed: id => allDone || (activeIdx !== -1 && deal.modules.findIndex(x => x.id === id) < activeIdx)
+      allDone, flagId, icon: anyAnnul ? '🗑️' : '🏁',
+      dimmedById: id => { const m = deal.modules.find(x => x.id === id); return m ? isDoneStatus(m) : false; }
     };
   }
 
@@ -512,7 +535,7 @@ if (typeof document !== 'undefined') (function () {
           ? '<div class="chk-cell"><input type="checkbox" class="mod-chk" data-module="' + esc(m.id) + '"' +
             (state.checked.has(m.id) ? ' checked' : '') + '></div>'
           : '';
-        const dim = em.dimmed(m.id);
+        const dim = em.dimmedById(m.id);
         const withFlag = em.allDone && em.flagId === m.id;
         html += '<div class="row data module' + (dim ? ' is-done' : '') + '" data-module="' + esc(m.id) + '">' +
           chk +
@@ -520,7 +543,7 @@ if (typeof document !== 'undefined') (function () {
           statusBadge(m) +
           EDIT_FIELDS.map(f => editCell(m, f)).join('') +
           '<div class="num run-cell">' + esc(cellValue(m, 'run')) + '</div>' +
-          ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, dim, withFlag)) + '</div>';
+          ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, dim, withFlag, em.icon)) + '</div>';
       }
     });
     $('chartBody').innerHTML = html;
@@ -574,7 +597,7 @@ if (typeof document !== 'undefined') (function () {
      (inputs не пересоздаются, фокус и набор не теряются; сортировка/
      сворачивание не сбрасываются). Вызывается на каждое изменение поля. */
   function updateGantt() {
-    const bounds = moduleDateBounds(deal.modules.map(m => effModule(m, edits)));
+    const bounds = moduleDateBounds(deal.modules.map(m => effModule(m, edits)), deal.stages, edits);
     const input = $('offsetInput').value;
     const offsetIso = input || defaultOffsetIso(bounds.min, state.step) || isoOf(new Date());
     if (!input) $('offsetInput').value = offsetIso;   /* правка вышла за диапазон → сетка расширяется */
@@ -592,7 +615,7 @@ if (typeof document !== 'undefined') (function () {
       if (!raw) return;
       const m = effModule(raw, edits);
       const withFlag = em.allDone && em.flagId === m.id;
-      row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, em.dimmed(m.id), withFlag)));
+      row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, em.dimmedById(m.id), withFlag, em.icon)));
       const run = row.querySelector('.run-cell');       /* производное «Р» тоже живое */
       if (run) run.textContent = cellValue(m, 'run');
     });
@@ -600,7 +623,7 @@ if (typeof document !== 'undefined') (function () {
   }
 
   function render() {
-    const bounds = moduleDateBounds(deal.modules.map(m => effModule(m, edits)));
+    const bounds = moduleDateBounds(deal.modules.map(m => effModule(m, edits)), deal.stages, edits);
     /* Смещение: из поля (если задано) либо дефолт = min(дат) − один шаг. */
     const input = $('offsetInput').value;
     const offsetIso = input || defaultOffsetIso(bounds.min, state.step) || isoOf(new Date());
