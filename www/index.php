@@ -100,6 +100,16 @@ if (!$session) {
 // ── 4. Render app ────────────────────────────────────────────────────────
 $html = file_get_contents(__DIR__ . '/template.html');
 
+// dealId из placement-контекста: B24 шлёт его в POST PLACEMENT_OPTIONS
+// (JSON-строка с ключом ID) — см. docs/b24-rest-docs api-reference/widgets/crm.
+$placementDealId = null;
+if (!empty($_POST['PLACEMENT_OPTIONS'])) {
+    $opts = json_decode((string)$_POST['PLACEMENT_OPTIONS'], true);
+    if (is_array($opts) && !empty($opts['ID']) && preg_match('/^\d{1,12}$/', (string)$opts['ID'])) {
+        $placementDealId = (string)$opts['ID'];
+    }
+}
+
 // Cache-bust: ?v=<mtime> к local css/js.
 $html = preg_replace_callback(
     '~(href|src)="((?:css|js)/[^"?#]+)"~',
@@ -112,5 +122,6 @@ $html = preg_replace_callback(
 );
 
 $inject = '<script>window.APP_SESSION = ' . json_encode($session['token'])
-        . '; window.APP_IS_ADMIN = ' . json_encode(!empty($session['isAdmin'])) . ';</script>';
+        . '; window.APP_IS_ADMIN = ' . json_encode(!empty($session['isAdmin']))
+        . '; window.APP_DEAL_ID = ' . json_encode($placementDealId) . ';</script>';
 echo str_replace('</head>', $inject . '</head>', $html);

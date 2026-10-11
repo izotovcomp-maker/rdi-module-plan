@@ -507,6 +507,9 @@
   /* dealId из placement-контекста: B24 передаёт параметры placement в URL iframe
      (ID / dealId / PARAMS[ID] — URI-закодированный JSON). */
   function getDealId() {
+    // 1) placement-контекст: index.php распарсил POST PLACEMENT_OPTIONS (ID)
+    if (window.APP_DEAL_ID && /^\d{1,12}$/.test(String(window.APP_DEAL_ID))) return String(window.APP_DEAL_ID);
+    // 2) query-параметры (открытие с ?dealId=…)
     var q = new URLSearchParams(location.search);
     var id = q.get('dealId') || q.get('ID') || '';
     if (!id) {
