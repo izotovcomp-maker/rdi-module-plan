@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Приложение</title>
+  <title>График модулей</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/app.css">
   <!-- B24 JS SDK подключается в iframe-режиме автоматически. Подключаем сами
        только для подстраховки + чтобы локальное открытие через init.php тоже
        не падало. -->
@@ -12,36 +13,76 @@
 </head>
 <body>
   <div id="app">
-    <header class="header-row">
-      <div>
-        <h1>Приложение</h1>
-        <p class="muted">Шаблон single-tenant B24 local-app. Подмени UI на свой.</p>
+
+    <!-- Зона 1: панель инструментов (sticky сверху) -->
+    <header class="toolbar" id="toolbar">
+      <div class="toolbar-title">
+        <h1>График модулей</h1>
+        <div class="muted" id="dealTitle">Загрузка…</div>
       </div>
-      <div class="header-actions">
-        <button type="button" id="debug-btn" class="btn-secondary" hidden title="Данные для разработчика: скопируй и отправь в чат с ассистентом">Дебаг</button>
+      <div class="toolbar-controls">
+        <!-- Тумблер режима правки: строго один режим активен -->
+        <div class="mode-toggle" title="Режим правки">
+          <button type="button" class="mode-btn active" data-mode="single">Единично</button>
+          <button type="button" class="mode-btn" data-mode="group">Группово</button>
+        </div>
+        <div class="changes-counter" id="changesCounter">Изменений: 0</div>
+        <button type="button" class="btn-secondary" id="sendBtn" disabled>Отправить изменения</button>
+        <button type="button" class="btn-secondary" id="cancelBtn" disabled>Отменить изменения</button>
+        <!-- Переключатель масштаба Ганта: шаг колонки календаря -->
+        <div class="scale-toggle" role="group" aria-label="Масштаб Ганта">
+          <button type="button" class="scale-btn" data-step="1d">1д</button>
+          <button type="button" class="scale-btn active" data-step="1w">1н</button>
+          <button type="button" class="scale-btn" data-step="2w">2н</button>
+          <button type="button" class="scale-btn" data-step="3w">3н</button>
+          <button type="button" class="scale-btn" data-step="4w">4н</button>
+        </div>
+        <!-- Смещение: первая дата календаря; пусто — дефолт min(дат) − шаг -->
+        <label class="offset-field">Смещение
+          <input type="date" id="offsetInput" value="">
+        </label>
         <button type="button" id="access-btn" class="btn-secondary" hidden>Доступ</button>
+        <button type="button" id="debug-btn" class="btn-secondary" hidden title="Данные для разработчика: скопируй и отправь в чат с ассистентом">Дебаг</button>
       </div>
     </header>
 
-    <main>
-      <section class="card">
-        <h2>Состояние</h2>
-        <ul id="state">
-          <li>BX24: <span id="bx24-state">проверяю…</span></li>
-          <li>Сессия: <span id="session-state">проверяю…</span></li>
-        </ul>
-      </section>
+    <!-- Панель ошибок валидации: список виден, пока есть ошибки -->
+    <div class="error-panel" id="errorPanel" hidden></div>
 
-      <section class="card">
-        <h2>Что дальше</h2>
-        <ol>
-          <li>Переименуй title и шапку под проект.</li>
-          <li>Добавь свои UI-блоки в этот файл.</li>
-          <li>Добавь свои endpoint'ы в <code>api/</code>.</li>
-          <li>Если нужен placement (вкладка в карточке / пункт в меню) — заполни <code>api/bind.php</code> и открой <code>/api/bind.php</code> из админ-сессии.</li>
-        </ol>
-      </section>
-    </main>
+    <!-- Панель ошибки загрузки данных: сообщение + «Повторить» -->
+    <div class="load-panel" id="loadPanel" hidden>
+      <span id="loadMsg"></span>
+      <button type="button" class="btn" id="reloadBtn">Повторить</button>
+    </div>
+
+    <!-- Сделка без модулей -->
+    <div class="error-banner" id="emptyNote" hidden>
+      <span>Модули не заведены.</span>
+    </div>
+
+    <!-- Окно группового ввода: видно только в режиме «Группово».
+         Пустые поля пропускаются — применяются только заполненные. -->
+    <div class="group-entry" id="groupEntry" hidden>
+      <span class="group-entry-title">Групповой ввод:</span>
+      <label>З <input type="number" id="gw-dayRun"></label>
+      <label>Рассмотрение <input type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" class="cell-input date-input" id="gw-check"></label>
+      <label>Разработка <input type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" class="cell-input date-input" id="gw-create"></label>
+      <label>К <input type="number" id="gw-dayEdit"></label>
+      <label>О <input type="number" id="gw-dayWait"></label>
+      <label>С <input type="number" id="gw-dayApprove"></label>
+      <button type="button" class="btn-primary" id="gwApply" disabled>Применить к отмеченным (0)</button>
+    </div>
+
+    <!-- Зона 2+3: единый скролл-контейнер, слева таблица, справа Гант.
+         Одна вертикальная прокрутка на обе зоны, строки выровнены (общая сетка колонок). -->
+    <div class="chart" id="chart" hidden>
+      <div class="chart-inner" id="chartInner">
+        <!-- шапка: 3 строки (год / месяц / заголовки) и тело — рисует js/app.js -->
+        <div id="chartHead"></div>
+        <div id="chartBody"></div>
+      </div>
+    </div>
+
   </div>
 
   <div id="access-modal-overlay" class="modal-overlay" hidden>
@@ -94,6 +135,21 @@
       </div>
     </div>
   </div>
+
+  <!-- Диалог подтверждения: отправка / отмена правок -->
+  <div id="confirm-overlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title"></h2>
+      <p class="muted" id="confirm-text"></p>
+      <div class="modal-actions">
+        <button type="button" id="confirm-no" class="btn-secondary">Отмена</button>
+        <button type="button" id="confirm-yes" class="btn-primary">Да</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Тост: автоскрытие 2.5 с -->
+  <div id="toast" class="toast" hidden></div>
 
   <script src="js/app.js"></script>
 </body>

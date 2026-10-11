@@ -4,16 +4,22 @@ declare(strict_types=1);
 /**
  * График модулей: загрузка данных по сделке (сделка = смарт-процесс 1038).
  *
- * GET  ?dealId=<ID> → { ok:true, dealId, stages:[{id,title,dfinish}],
- *                       modules:[{id,title,check,create,dayRun,dayEdit,dayWait,dayApprove,stageId}] }
+ * GET  ?dealId=<ID> → { ok:true, dealId, stages:[{id,title,dstart,dfinish}],
+ *                       modules:[{id,title,num,sname,status,statusColor,stageId,check,create,
+ *                                 runD,editD,waitD,approveD,dayRun,dayEdit,dayWait,dayApprove}] }
  * POST ?dealId=<ID>&action=save, JSON {updates:[{id, fields:{...}}]}
  *      → { ok:true, saved:N, skipped:[{id,reason}], errors:[{id,error}] }
  *
  * stages  — crm.item.list entityTypeId=1042, filter PARENT_ID_1038=dealId;
- *           dfinish = UF_CRM_10_MST_DFINISH.
+ *           dstart/dfinish = UF_CRM_10_MST_DSTART/DFINISH.
  * modules — crm.item.list entityTypeId=1050, filter PARENT_ID_1038=dealId;
  *           check/create = UF_CRM_14_MOD_CHECK/CREATE, dayRun..dayApprove =
- *           UF_CRM_14_MOD_DAY2_RUN/EDIT/WAIT/APPROVE, stageId = PARENT_ID_1042.
+ *           UF_CRM_14_MOD_DAY2_RUN/EDIT/WAIT/APPROVE, runD/editD/waitD/approveD =
+ *           UF_CRM_14_MOD_RUN/EDIT/WAIT/APPROVE, stageId = PARENT_ID_1042 (этап сделки).
+ *           num/sname разбираются из title («…_N-КР_01-…» по БП).
+ * status/statusColor — стадия модуля в его собственной воронке (stageId вида
+ *           DT1050_20:NEW): crm.category.list (entityTypeId=1050, isDefault=Y) →
+ *           crm.status.list (ENTITY_ID='C1050:<id>'), карта STATUS_ID → аббревиатура/цвет.
  *
  * crm.item.list отдаёт по 50 записей: первая страница — call(), остальные —
  * batch() (правило rule-b24-rest-batch-not-loop), не больше MAX_PAGES страниц
@@ -37,6 +43,18 @@ const GRAPH_MAX_PAGES     = 20;
 
 // ── Чистые функции (покрыты локальным тестом /tmp/kilo/test-b1.php) ─────────
 
+/** STATUS_ID воронки модулей → сокращение (жёстко, из ТЗ). */
+const GRAPH_STATUS_ABBR = [
+    'NEW'         => 'Зап',
+    'PREPARATION' => 'Расм',
+    'CLIENT'      => 'Разр',
+    'UC_AJTX21'   => 'Корр',
+    'UC_PM02XS'   => 'Ожид',
+    'UC_M71TWU'   => 'Согл',
+    'SUCCESS'     => 'Завр',
+    'FAIL'        => 'Анну',
+];
+
 /** dealId — положительное целое, иначе null. */
 function normalizeDealId($raw): ?int {
     if (is_int($raw)) return $raw > 0 ? $raw : null;
@@ -47,27 +65,75 @@ function normalizeDealId($raw): ?int {
     return null;
 }
 
-/** Этап → {id,title,dfinish}. */
+/** Этап → {id,title,dstart,dfinish}. */
 function mapStage(array $item): array {
     return [
         'id'      => (int)($item['id'] ?? 0),
         'title'   => (string)($item['title'] ?? ''),
+        'dstart'  => (string)($item['UF_CRM_10_MST_DSTART'] ?? ''),
         'dfinish' => (string)($item['UF_CRM_10_MST_DFINISH'] ?? ''),
     ];
 }
 
-/** Модуль → {id,title,check,create,dayRun,dayEdit,dayWait,dayApprove,stageId}. */
-function mapModule(array $item): array {
+/**
+ * num/sname из title модуля по БП: «<этап>_<номер>-<шифр раздела>-…»,
+ * шифр вида «ИИ_01». Не разобралось → пустые строки.
+ */
+function graph_numSname(string $title): array {
+    if (preg_match('/_([0-9]{1,5})-([A-Za-zА-Яа-яЁё]+_[0-9]+)/u', $title, $m)) {
+        return [$m[1], $m[2]];
+    }
+    return ['', ''];
+}
+
+/**
+ * Стадия воронки модуля → {abbr, color}. crm.status.list ENTITY_ID 'C1050:<id категории>'
+ * → карта STATUS_ID → {abbr, color}. Известные STATUS_ID — из GRAPH_STATUS_ABBR;
+ * пользовательские — abbr = первые 4 символа NAME, color = COLOR или '#ccc'.
+ */
+function graph_statusAbbrMap(array $rows): array {
+    $map = [];
+    foreach ($rows as $r) {
+        if (!is_array($r)) continue;
+        $sid = (string)($r['STATUS_ID'] ?? '');
+        if ($sid === '') continue;
+        $abbr  = GRAPH_STATUS_ABBR[$sid] ?? mb_substr(trim((string)($r['NAME'] ?? '')), 0, 4);
+        $color = (string)($r['COLOR'] ?? '');
+        $map[$sid] = ['abbr' => $abbr, 'color' => $color !== '' ? $color : '#ccc'];
+    }
+    return $map;
+}
+
+/** STATUS_ID из стадия-строки модуля crm.item ('DT1050_20:NEW' → 'NEW'). */
+function graph_statusIdOf(string $funnelStage): string {
+    if ($funnelStage === '') return '';
+    $p = strrpos($funnelStage, ':');
+    return $p === false ? $funnelStage : substr($funnelStage, $p + 1);
+}
+
+/** Модуль → полный ответ-объект. $statusMap — карта graph_statusAbbrMap(). */
+function mapModule(array $item, array $statusMap = []): array {
+    [$num, $sname] = graph_numSname((string)($item['title'] ?? ''));
+    $sid  = graph_statusIdOf((string)($item['stageId'] ?? ''));
+    $stat = $statusMap[$sid] ?? null;
     return [
-        'id'         => (int)($item['id'] ?? 0),
-        'title'      => (string)($item['title'] ?? ''),
-        'check'      => $item['UF_CRM_14_MOD_CHECK'] ?? null,
-        'create'     => $item['UF_CRM_14_MOD_CREATE'] ?? null,
-        'dayRun'     => $item['UF_CRM_14_MOD_DAY2_RUN'] ?? null,
-        'dayEdit'    => $item['UF_CRM_14_MOD_DAY2_EDIT'] ?? null,
-        'dayWait'    => $item['UF_CRM_14_MOD_DAY2_WAIT'] ?? null,
-        'dayApprove' => $item['UF_CRM_14_MOD_DAY2_APPROVE'] ?? null,
-        'stageId'    => isset($item['PARENT_ID_1042']) ? (int)$item['PARENT_ID_1042'] : null,
+        'id'          => (int)($item['id'] ?? 0),
+        'title'       => (string)($item['title'] ?? ''),
+        'num'         => $num,
+        'sname'       => $sname,
+        'status'      => $stat['abbr'] ?? '',
+        'statusColor' => $stat['color'] ?? '#ccc',
+        'stageId'     => isset($item['PARENT_ID_1042']) ? (int)$item['PARENT_ID_1042'] : null,
+        'check'       => $item['UF_CRM_14_MOD_CHECK'] ?? '',
+        'create'      => $item['UF_CRM_14_MOD_CREATE'] ?? '',
+        'runD'        => $item['UF_CRM_14_MOD_RUN'] ?? '',
+        'editD'       => $item['UF_CRM_14_MOD_EDIT'] ?? '',
+        'waitD'       => $item['UF_CRM_14_MOD_WAIT'] ?? '',
+        'approveD'    => $item['UF_CRM_14_MOD_APPROVE'] ?? '',
+        'dayRun'      => $item['UF_CRM_14_MOD_DAY2_RUN'] ?? '',
+        'dayEdit'     => $item['UF_CRM_14_MOD_DAY2_EDIT'] ?? '',
+        'dayWait'     => $item['UF_CRM_14_MOD_DAY2_WAIT'] ?? '',
+        'dayApprove'  => $item['UF_CRM_14_MOD_DAY2_APPROVE'] ?? '',
     ];
 }
 
@@ -92,8 +158,10 @@ function graphListAll($b24, int $entityTypeId, int $dealId): array {
     $params = [
         'entityTypeId' => $entityTypeId,
         'filter'       => ['PARENT_ID_' . GRAPH_ENTITY_DEAL => $dealId],
-        'select'       => ['id', 'title', 'UF_CRM_10_MST_DFINISH', 'UF_CRM_14_MOD_CHECK',
-                           'UF_CRM_14_MOD_CREATE', 'UF_CRM_14_MOD_DAY2_RUN', 'UF_CRM_14_MOD_DAY2_EDIT',
+        'select'       => ['id', 'title', 'stageId', 'UF_CRM_10_MST_DSTART', 'UF_CRM_10_MST_DFINISH',
+                           'UF_CRM_14_MOD_CHECK', 'UF_CRM_14_MOD_CREATE',
+                           'UF_CRM_14_MOD_RUN', 'UF_CRM_14_MOD_EDIT', 'UF_CRM_14_MOD_WAIT', 'UF_CRM_14_MOD_APPROVE',
+                           'UF_CRM_14_MOD_DAY2_RUN', 'UF_CRM_14_MOD_DAY2_EDIT',
                            'UF_CRM_14_MOD_DAY2_WAIT', 'UF_CRM_14_MOD_DAY2_APPROVE', 'PARENT_ID_1042'],
         'start'        => 0,
     ];
@@ -133,12 +201,38 @@ function graphListAll($b24, int $entityTypeId, int $dealId): array {
 }
 
 /**
+ * Карта статусов воронки модулей: crm.category.list (entityTypeId=1050, берём
+ * isDefault=Y, иначе первую) → crm.status.list (ENTITY_ID='C1050:<id>').
+ * Ошибка REST → RuntimeException.
+ */
+function graph_statusMap($b24): array {
+    $cat = $b24->call('crm.category.list', ['entityTypeId' => GRAPH_ENTITY_MODULE]);
+    if (!empty($cat['error'])) {
+        throw new RuntimeException('crm.category.list: ' . ($cat['error_description'] ?? $cat['error']));
+    }
+    $cats = array_values((array)($cat['result']['categories'] ?? []));
+    $chosen = null;
+    foreach ($cats as $c) {
+        if (is_array($c) && (($c['isDefault'] ?? '') === 'Y' || ($c['isDefault'] ?? false) === true)) { $chosen = $c; break; }
+    }
+    if ($chosen === null && $cats !== []) $chosen = $cats[0];
+    if (!is_array($chosen) || empty($chosen['id'])) return [];
+    $st = $b24->call('crm.status.list', ['ENTITY_ID' => 'C1050:' . (int)$chosen['id']]);
+    if (!empty($st['error'])) {
+        throw new RuntimeException('crm.status.list: ' . ($st['error_description'] ?? $st['error']));
+    }
+    return graph_statusAbbrMap((array)($st['result'] ?? []));
+}
+
+/**
  * Вся загрузка по сделке. $b24 — экземпляр B24 (call/batch) — тестируется
  * с closure-заглушкой. Ошибка REST → RuntimeException.
  */
 function graph_handle($b24, int $dealId): array {
     $stages    = array_map('mapStage',  graphListAll($b24, GRAPH_ENTITY_STAGE, $dealId));
-    $modules   = array_map('mapModule', graphListAll($b24, GRAPH_ENTITY_MODULE, $dealId));
+    $statusMap = graph_statusMap($b24);
+    $modules   = array_map(static fn(array $it): array => mapModule($it, $statusMap),
+                           graphListAll($b24, GRAPH_ENTITY_MODULE, $dealId));
     $truncated = count($stages) >= GRAPH_MAX_PAGES * GRAPH_PAGE_SIZE
               || count($modules) >= GRAPH_MAX_PAGES * GRAPH_PAGE_SIZE;
     return [
