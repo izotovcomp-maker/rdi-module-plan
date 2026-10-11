@@ -26,6 +26,12 @@ requireSession();
 // На коробке — `placement.bind LEFT_MENU` нужен явно.
 $appUrl = rtrim(APP_URL, '/') . '/';
 $placements = [
+    // Вкладка в детальной карточке смарт-процесса «Сделки» (entityTypeId=1038).
+    [
+        'PLACEMENT' => 'CRM_DYNAMIC_1038_DETAIL_TAB',
+        'HANDLER'   => $appUrl,
+        'TITLE'     => 'График модулей',
+    ],
     // Пример 1: вкладка в карточке сделки.
     // [
     //     'PLACEMENT' => 'CRM_DEAL_DETAIL_TAB',
