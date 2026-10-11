@@ -210,6 +210,32 @@
     $('debug-modal-close').addEventListener('click', function () { debugOverlay.hidden = true; });
   }
 
+  // ── кнопка «Плейсменты» (админ): привязать вкладку карточки смарт-процесса ───
+  var bindBtn = $('bind-btn');
+  if (bindBtn) {
+    if (window.APP_IS_ADMIN) bindBtn.hidden = false;
+    bindBtn.addEventListener('click', function () {
+      bindBtn.disabled = true;
+      var old = bindBtn.textContent;
+      bindBtn.textContent = 'Привязываю…';
+      window.api('GET', 'api/bind.php?format=json').then(function (res) {
+        var lines = [];
+        var okAll = res.ok !== false;
+        Object.keys(res.results || {}).forEach(function (code) {
+          var r = res.results[code];
+          lines.push(code + ': ' + (r.ok ? 'привязан' : 'ОШИБКА ' + (r.error || '')));
+          if (!r.ok) okAll = false;
+        });
+        showToast(okAll ? 'Плейсменты привязаны — открой карточку сделки' : 'Ошибка привязки: ' + lines.join('; '));
+      }).catch(function (err) {
+        showToast('Ошибка запроса: ' + err.message);
+      }).then(function () {
+        bindBtn.disabled = false;
+        bindBtn.textContent = old;
+      });
+    });
+  }
+
   // ── График модулей ──────────────────────────────────────────────────────────
 
   var parseD = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };

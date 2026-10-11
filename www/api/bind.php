@@ -47,7 +47,33 @@ $placements = [
     // ],
 ];
 
-header('Content-Type: text/html; charset=utf-8');
+// JSON-режим (для кнопки в приложении): api/bind.php?format=json
+$wantJson = isset($_GET['format']) && $_GET['format'] === 'json';
+header('Content-Type: ' . ($wantJson ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8'));
+if ($wantJson) {
+    $results = [];
+    if (empty($placements)) {
+        echo json_encode(['ok' => false, 'error' => 'Список плейсментов пуст'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    try { $b24 = b24(); } catch (Throwable $e) {
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    foreach ($placements as $p) {
+        $code = $p['PLACEMENT'];
+        try { $b24->call('placement.unbind', ['PLACEMENT' => $code, 'HANDLER' => $p['HANDLER']]); } catch (Throwable $e) {}
+        try {
+            $res = $b24->call('placement.bind', $p);
+            $results[$code] = isset($res['error']) ? ['ok' => false, 'error' => $res['error']] : ['ok' => true, 'result' => $res];
+        } catch (Throwable $e) {
+            $results[$code] = ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+    echo json_encode(['ok' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 echo '<!DOCTYPE html><meta charset="UTF-8"><style>body{font-family:system-ui,sans-serif;padding:30px;background:#eef2f4;color:#333;max-width:900px;margin:0 auto}h1{color:#2c3e50}.ok{color:#1e6b1e}.err{color:#b03030}pre{background:#fff;border:1px solid #dde1e7;border-radius:6px;padding:14px;font-size:12px;overflow:auto;white-space:pre-wrap}</style>';
 
 if (empty($placements)) {
