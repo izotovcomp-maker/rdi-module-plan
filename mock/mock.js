@@ -488,7 +488,8 @@ if (typeof document !== 'undefined') (function () {
 
   function statusBadge(m) {
     const color = STATUS_COLORS[m.status] || '#ccc';
-    return '<div class="st-cell" title="Стадия модуля по воронке"><span class="st-badge" style="background:' + color + '">' + esc(m.status) + '</span></div>';
+    const fg = STATUS_DARK_BG.indexOf(m.status) !== -1 ? '#fff' : '#10233b';
+    return '<div class="st-cell" title="Стадия модуля по воронке"><span class="st-badge" style="background:' + color + ';color:' + fg + '">' + esc(m.status) + '</span></div>';
   }
 
   function renderBody(cols, offsetIso) {

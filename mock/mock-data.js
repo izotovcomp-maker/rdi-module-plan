@@ -52,20 +52,31 @@ const MOCK_DATA = {
   ]
 };
 
-/* Статусы модулей (стадии воронки 1050) и цвета плашек.
-   ВРЕМЕННЫЕ плейсхолдеры — заменить на реальные цвета из crm.status.list
-   портала (JSON от вебхука пришлёт заказчик). */
+/* Статусы модулей (стадии воронки 1050, категория 20) и цвета плашек.
+   Цвета — реальные, из crm.status.list портала ooordi (JSON от вебхука, 2026-10-11).
+   STATUS_ID → сокращение/полное имя — понадобится бэку (api/graph.php):
+     DT1050_20:NEW          Зап      Запуск        #000000
+     DT1050_20:PREPARATION  Расм     Рассмотрение  #88b9ff
+     DT1050_20:CLIENT       Разр     Разработка    #10e5fc
+     DT1050_20:UC_AJTX21    Корр     Корректировка #ace9fb
+     DT1050_20:UC_PM02XS    Ожид     Ожидание      #fff300
+     DT1050_20:UC_M71TWU    Согл     Согласование  #00a74c
+     DT1050_20:SUCCESS      Заверш   Завершено     #00ff00
+     DT1050_20:FAIL         Аннул    Аннулировано  #ff0000 */
 const STATUS_COLORS = {
-  'Зап':     '#9aa5b1',
-  'Расм':    '#e8b73a',
-  'Разр':    '#3f8cff',
-  'Корр':    '#ef7b45',
-  'Ожид':    '#a78bfa',
-  'Согл':    '#34d399',
-  'Заверш':  '#10b981'
+  'Зап':     '#000000',
+  'Расм':    '#88b9ff',
+  'Разр':    '#10e5fc',
+  'Корр':    '#ace9fb',
+  'Ожид':    '#fff300',
+  'Согл':    '#00a74c',
+  'Заверш':  '#00ff00',
+  'Аннул':   '#ff0000'
 };
-const STATUS_COMPLETED = ['Заверш'];
+const STATUS_COMPLETED = ['Заверш', 'Аннул'];
+/* Цвет текста плашки: тёмный на светлых заливках, белый на тёмных. */
+const STATUS_DARK_BG = ['Зап'];
 
 /* Экспорт для браузера (index.html) и для node-проверок. */
-if (typeof window !== 'undefined') { window.MOCK_DATA = MOCK_DATA; window.STATUS_COLORS = STATUS_COLORS; window.STATUS_COMPLETED = STATUS_COMPLETED; }
+if (typeof window !== 'undefined') { window.MOCK_DATA = MOCK_DATA; window.STATUS_COLORS = STATUS_COLORS; window.STATUS_COMPLETED = STATUS_COMPLETED; window.STATUS_DARK_BG = STATUS_DARK_BG; }
 if (typeof module !== 'undefined' && module.exports) { module.exports = MOCK_DATA; }
