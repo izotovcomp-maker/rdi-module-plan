@@ -60,7 +60,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* Общая сетка строк: колонки задаёт --grid-cols (имя + 7 колонок таблицы + N ячеек Ганта) */
 .row { display: grid; grid-template-columns: var(--grid-cols); --row-h: 32px; }
 .row > div { height: var(--row-h); padding: 0 10px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: calc(var(--row-h) - 1px); }
-.row > div.num { text-align: right; font-family: var(--font-mono); }
+.row > div.num { text-align: right; font-family: var(--font-mono); padding: 0 4px; }
 
 /* ── Sticky: шапка (3 строки: год / месяц / заголовки) + заголовки таблицы ── */
 .h-cell { background: var(--paper-2); font-weight: 600; color: var(--ink); font-size: 12px; }
@@ -81,8 +81,21 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .row.stage { cursor: pointer; user-select: none; }
 .row.stage > div { background: var(--paper-3); font-weight: 700; color: var(--ink); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .row.stage .name { background: var(--paper-3); }
+/* Этапная строка: высота по содержимому (название может занять 2 строки) */
+.row.stage > div { height: auto; min-height: var(--row-h); }
+.row.stage .name, .row.stage .kp-note { white-space: normal; line-height: 1.25; padding-top: 4px; }
+.row.stage .name { text-transform: none; }
+.row.stage .kp-note { font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; }
 .stage-toggle { display: inline-block; width: 1em; text-align: center; }
 .muted-note { color: var(--muted); }
+
+/* Статус модуля: плашка с цветом стадии воронки */
+.st-cell { display: flex; align-items: center; padding: 0 2px !important; }
+.st-badge {
+  display: inline-block; width: 100%; text-align: center;
+  font-size: 10px; font-weight: 700; line-height: 18px;
+  color: #10233b; border-radius: 3px; border: 1px solid rgba(0,0,0,.25);
+}
 
 /* Сортировка: заголовки-кнопки и индикатор направления */
 .sort-btn { cursor: pointer; user-select: none; }
@@ -100,6 +113,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .gantt-bar.accent { background: var(--accent); border-color: var(--ink); z-index: 2; }
 /* Вторичные полосы — другой акцент (warn), тоньше основной */
 .gantt-bar.secondary { background: var(--warn); border-color: var(--ink); height: 8px; z-index: 1; }
+/* Завершённые модули (до первого незавершённого / все при завершённой сделке) — светлее */
+.gantt-bar.dimmed { opacity: .35; }
+/* Флаг «все модули завершены» — в конце последней полосы */
+.gantt-flag { position: absolute; top: 50%; transform: translate(-2px, -50%); font-size: 13px; line-height: 1; z-index: 4; }
 /* Маркер «Сегодня» — вертикальная линия */
 .gantt-today { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--exp); z-index: 3; }
 

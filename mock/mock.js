@@ -44,6 +44,7 @@ function cellValue(m, key) {
 /* Ключ сортировки: сырое значение (даты ISO, длительности числа) или null, если пусто. */
 function sortKey(m, key) {
   if (key === 'title') return m.title;
+  if (key === 'status') return STATUS_ORDER.indexOf(m.status);
   if (key === 'check' || key === 'create') return m[key] || null;
   if (key === 'run') { const r = runDays(m); return r === '' ? null : r; }
   return (m.check && m.create) ? m[key] : null;
@@ -82,6 +83,8 @@ function tableRows(stages, modules, collapsed) {
 
 /* Шаг масштаба → число дней в колонке. */
 const STEP_MAP = { '1d': 1, '1w': 7, '2w': 14, '3w': 21, '4w': 28 };
+/* Порядок стадий воронки (для сортировки по статусу). */
+const STATUS_ORDER = ['Зап', 'Расм', 'Разр', 'Корр', 'Ожид', 'Согл', 'Заверш'];
 function stepDaysOf(step) { return STEP_MAP[step] || 7; }
 
 const isoOf = d => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
@@ -334,7 +337,7 @@ if (typeof document !== 'undefined') (function () {
   function setGridCols(nCols) {
     const lead = state.mode === 'group' ? '30px ' : '';
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(180px, 230px) 38px 92px 92px 92px 40px 40px 40px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + 'minmax(170px, 210px) 64px 36px 84px 84px 84px 34px 34px 34px repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
   /* Ячейка редактируемого поля: input в единичном режиме (даты — текст дд.мм.гг,
@@ -357,15 +360,28 @@ if (typeof document !== 'undefined') (function () {
       ' value="' + esc(val) + '"' + ro + '></div>';
   }
 
-  /* Полоса модуля в px: позиция/ширина от чистой barColumns. */
-  function barsFor(m, offsetIso, cols) {
+  /* Завершён ли модуль: стадия из STATUS_COMPLETED (пока «Заверш»). */
+  function isDoneStatus(m) { return STATUS_COMPLETED.indexOf(m.status) !== -1; }
+
+  /* Полоса модуля в px: позиция/ширина от чистой barColumns.
+     dim — завершённый (до первого незавершённого или все завершены): светлее.
+     withFlag — все модули завершены и у этого правый конец: флаг 🏁. */
+  function barsFor(m, offsetIso, cols, dim, withFlag) {
     const html = barsForModule(m).map(b => {
       const p = barColumns(offsetIso, state.step, cols.length, b.start, b.end);
       if (!p.visible) return '';
-      return '<div class="gantt-bar ' + b.kind + '" style="left:' + (p.start * COL_W) + 'px;width:' +
+      return '<div class="gantt-bar ' + b.kind + (dim ? ' dimmed' : '') + '" style="left:' + (p.start * COL_W) + 'px;width:' +
         (p.width * COL_W - 2) + 'px" title="' + esc(b.title) + '"></div>';
     }).join('');
-    return html;
+    const flag = withFlag && barsForModule(m).length
+      ? (() => {
+          const bars = barsForModule(m);
+          const last = bars[bars.length - 1];
+          const p = barColumns(offsetIso, state.step, cols.length, last.start, last.end);
+          return p.visible ? '<div class="gantt-flag" style="left:' + (p.start * COL_W + p.width * COL_W) + 'px" title="Все модули завершены">🏁</div>' : '';
+        })()
+      : '';
+    return html + flag;
   }
 
   /* Трек Ганта — ОДИН grid-элемент, который должен занимать ВСЕ колонки
@@ -405,6 +421,7 @@ if (typeof document !== 'undefined') (function () {
 
   /* Заголовки колонок таблицы: data-sort — ключ сортировки; title — подсказка. */
   const HEAD_COLS = [
+    { label: 'Статус', cls: '', key: 'status', title: 'Стадия модуля по воронке (цвета — из Б24)' },
     { label: 'З', cls: 'num', key: 'dayRun', title: 'Запуск — рабочих дней от старта до начала Рассмотрения' },
     { label: 'Рассмотр.', cls: '', key: 'check', title: 'Дата начала Рассмотрения (стадия модуля)' },
     { label: 'Разработка', cls: '', key: 'create', title: 'Дата завершения Разработки — конец работ по модулю' },
@@ -451,18 +468,42 @@ if (typeof document !== 'undefined') (function () {
     return '<div class="chk-cell"><input type="checkbox" class="stage-chk" data-stage="' + esc(st.id) + '"' + attr + ind + '></div>';
   }
 
+  /* Активный модуль = первый незавершённый (в порядке данных). Всё, что раньше
+     его, — завершённое: полосы светлее. Если завершены все — флаг 🏁 в конце. */
+  function moduleEmphasis() {
+    const activeIdx = deal.modules.findIndex(m => !isDoneStatus(m));
+    const allDone = activeIdx === -1;
+    let flagId = null;
+    if (allDone) {
+      let maxEnd = null;
+      deal.modules.forEach(m => barsForModule(m).forEach(b => {
+        if (maxEnd === null || b.end > maxEnd) { maxEnd = b.end; flagId = m.id; }
+      }));
+    }
+    return {
+      allDone, flagId,
+      dimmed: id => allDone || (activeIdx !== -1 && deal.modules.findIndex(x => x.id === id) < activeIdx)
+    };
+  }
+
+  function statusBadge(m) {
+    const color = STATUS_COLORS[m.status] || '#ccc';
+    return '<div class="st-cell" title="Стадия модуля по воронке"><span class="st-badge" style="background:' + color + '">' + esc(m.status) + '</span></div>';
+  }
+
   function renderBody(cols, offsetIso) {
-    const effMods = deal.modules.map(m => effModule(m, edits));
     let html = '';
+    const em = moduleEmphasis();
     tableRows(deal.stages, deal.modules, collapsed).forEach(r => {
       if (r.type === 'stage') {
         const df = r.stage.dfinish;
         const chk = state.mode === 'group' ? stageCheckbox(r.stage) : '';
         html += '<div class="row data stage" data-stage="' + esc(r.stage.id) + '" title="Свернуть/развернуть модули">' +
           chk +
-          '<div class="name"><span class="stage-toggle">' + (r.open ? '▾' : '▸') + '</span> ' + esc(r.stage.title) + '</div>' +
+          '<div class="name stage-name"><span class="stage-toggle">' + (r.open ? '▾' : '▸') + '</span> ' + esc(r.stage.title) + '</div>' +
+          '<div class="st-cell"></div>' +
           '<div class="num muted-note"></div><div></div><div></div>' +
-          '<div class="num muted-note">по КП: ' + esc(df.slice(8)) + '.' + esc(df.slice(5, 7)) + '</div><div></div><div></div><div></div>' +
+          '<div class="kp-note">по КП: ' + esc(fmtDyy(parseD(df))) + '</div><div></div><div></div><div></div>' +
           ganttCells(cols, offsetIso) + '</div>';
       } else {
         const m = effModule(r.module, edits);
@@ -470,12 +511,15 @@ if (typeof document !== 'undefined') (function () {
           ? '<div class="chk-cell"><input type="checkbox" class="mod-chk" data-module="' + esc(m.id) + '"' +
             (state.checked.has(m.id) ? ' checked' : '') + '></div>'
           : '';
-        html += '<div class="row data module" data-module="' + esc(m.id) + '">' +
+        const dim = em.dimmed(m.id);
+        const withFlag = em.allDone && em.flagId === m.id;
+        html += '<div class="row data module' + (dim ? ' is-done' : '') + '" data-module="' + esc(m.id) + '">' +
           chk +
           '<div class="name" title="' + esc(m.title) + '">' + esc(m.num) + ' · ' + esc(m.sname) + '</div>' +
+          statusBadge(m) +
           EDIT_FIELDS.map(f => editCell(m, f)).join('') +
           '<div class="num run-cell">' + esc(cellValue(m, 'run')) + '</div>' +
-          ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols)) + '</div>';
+          ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, dim, withFlag)) + '</div>';
       }
     });
     $('chartBody').innerHTML = html;
@@ -536,8 +580,9 @@ if (typeof document !== 'undefined') (function () {
     const cols = buildCols(offsetIso, state.step, bounds.max);
     setGridCols(cols.length);
     renderHead(cols);
+    const em = moduleEmphasis();
     document.querySelectorAll('#chartBody .row.module, #chartBody .row.stage').forEach(row => {
-      row.querySelectorAll('.gantt-track, .gantt-bar').forEach(el => el.remove());
+      row.querySelectorAll('.gantt-track, .gantt-bar, .gantt-flag').forEach(el => el.remove());
       if (row.classList.contains('stage')) {          /* у этапа — только пустая сетка */
         row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso));
         return;
@@ -545,7 +590,8 @@ if (typeof document !== 'undefined') (function () {
       const raw = deal.modules.find(x => x.id === row.dataset.module);
       if (!raw) return;
       const m = effModule(raw, edits);
-      row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols)));
+      const withFlag = em.allDone && em.flagId === m.id;
+      row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, em.dimmed(m.id), withFlag)));
       const run = row.querySelector('.run-cell');       /* производное «Р» тоже живое */
       if (run) run.textContent = cellValue(m, 'run');
     });
