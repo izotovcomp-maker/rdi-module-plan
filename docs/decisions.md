@@ -144,3 +144,31 @@ MOD_CREATE (акцент); Корректировка = MOD_CREATE → MOD_EDIT 
 
 **Следствие.** При смене кода плейсмента/названия — нажать «Плейсменты» заново
 (идемпотентно: unbind+bind). Долг шаблона: авто-бинд в фазе 2 install-flow.
+
+---
+
+## D-006 · crm.item.list только noselect: select на этом портале молча режет ответ
+
+**Контекст.** График на реальных данных приходил пустым. Дебаг-матрица (4 прогона
+probe) показала кворк портала ooordi (Б24 облако, осень 2026) в `crm.item.list`:
+
+- `useOriginalUfNames=Y` + `select` → в items **только UF-поля**, системные
+  (id, title, stageId, parentId1042) молча выкинуты;
+- `useOriginalUfNames=N` + `select` с UPPER_CASE UF → UF **молча выкинуты**
+  (системные возвращаются); тот же вызов с `useOriginalUfNames=N` без select — полный;
+- `Y` без select → всё на месте: системные ключи camelCase, UF — UPPER_CASE;
+- `crm.item.fields` на этом портале возвращает пусто (без ошибки) — имена полей
+  снимали из noselect-items;
+- `limit`/`order` параметрами crm.item.list не являются (limit игнорируется);
+  фильтр привязки — `parentId1038`/`parentId1042` (camelCase, не PARENT_ID_1038).
+
+**Решение.** В `graph.php` `crm.item.list` вызывается **без select** (b24() сама
+ставит `useOriginalUfNames=Y` по правилу UPPER_CASE UF). Полнотекстовые ACT-поля
+(истории) в 1042/1050 умеренные — объём ответа приемлем. num/sname берём из
+`UF_CRM_14_MOD_NUM/SNAME` (fallback — regex по title), привязка к этапу — ключ
+`parentId1042`.
+
+**Следствие.** Если на других порталах кворк не воспроизводится — не страшно:
+noselect работает везде. Если объём ответа станет проблемой (сотни модулей с
+большими текстами) — пересмотреть на два запроса (Y+noselect минимально / N+select
+системных) с merge по id.

@@ -24,6 +24,15 @@ description: Хронология того, что уже сделано — н�
 
 <!-- Новые записи добавляй СВЕРХУ, сразу под этой строкой -->
 
+## 2026-10-12 · Починен график: noselect + parentId1038 + UF num/sname (D-006)
+- Изоляция кворка (3 Дебага): `Y+select` → только UF, `N+select` → UF выкинуты,
+  `Y+noselect` → всё; `crm.item.fields` на портале пуст; фильтр — `parentId1038/1042`
+- graph.php: select убран, фильтр `parentId`+GRAPH_ENTITY_DEAL, stageId из
+  `parentId1042`, num/sname из `UF_CRM_14_MOD_NUM/SNAME` (fallback regex по title)
+- Тесты test-b1 фикстуры под реальный контракт — 48 чеков ALL OK; probe-task
+  переключён на проверку graph_handle по сделке 12
+- Задеплоено; **ждём:** живой график на сделке 12 → Дебаг-вывод graph_handle
+
 ## 2026-10-12 · Диагноз пустого графика: неверный фильтр привязки
 - Первый Дебаг-вывод: crm.item.list 1050 по `PARENT_ID_1038=1` → total: 0; crm.item.fields
   вернул пусто (ошибки прятал compactFields)

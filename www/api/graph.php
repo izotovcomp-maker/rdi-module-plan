@@ -10,20 +10,25 @@ declare(strict_types=1);
  * POST ?dealId=<ID>&action=save, JSON {updates:[{id, fields:{...}}]}
  *      → { ok:true, saved:N, skipped:[{id,reason}], errors:[{id,error}] }
  *
- * stages  — crm.item.list entityTypeId=1042, filter PARENT_ID_1038=dealId;
+ * stages  — crm.item.list entityTypeId=1042, filter parentId1038=dealId;
  *           dstart/dfinish = UF_CRM_10_MST_DSTART/DFINISH.
- * modules — crm.item.list entityTypeId=1050, filter PARENT_ID_1038=dealId;
+ * modules — crm.item.list entityTypeId=1050, filter parentId1038=dealId;
  *           check/create = UF_CRM_14_MOD_CHECK/CREATE, dayRun..dayApprove =
  *           UF_CRM_14_MOD_DAY2_RUN/EDIT/WAIT/APPROVE, runD/editD/waitD/approveD =
- *           UF_CRM_14_MOD_RUN/EDIT/WAIT/APPROVE, stageId = PARENT_ID_1042 (этап сделки).
- *           num/sname разбираются из title («…_N-КР_01-…» по БП).
+ *           UF_CRM_14_MOD_RUN/EDIT/WAIT/APPROVE, stageId = parentId1042 (этап сделки).
+ *           num/sname = UF_CRM_14_MOD_NUM/SNAME (fallback — разбор title «…_N-КР_01-…»).
  * status/statusColor — стадия модуля в его собственной воронке (stageId вида
  *           DT1050_20:NEW): crm.category.list (entityTypeId=1050, isDefault=Y) →
  *           crm.status.list (ENTITY_ID='C1050:<id>'), карта STATUS_ID → аббревиатура/цвет.
  *
+ * Кворк портала ooordi (D-006): useOriginalUfNames=Y (его подставляет b24()) вместе
+ * с select молча выкидывает системные поля из ответа, а N+select — UF-поля.
+ * Поэтому select НЕ задан (noselect): Y+noselect отдаёт всё — системные ключи
+ * camelCase (id, stageId, parentId1042), UF — UPPER_CASE.
+ *
  * crm.item.list отдаёт по 50 записей: первая страница — call(), остальные —
  * batch() (правило rule-b24-rest-batch-not-loop), не больше MAX_PAGES страниц
- * (защита от зацикливания). useOriginalUfNames='Y' подставляет b24().
+ * (защита от зацикливания).
  *
  * Доступ: сессия шаблона + accessAllows() по текущему режиму (как в других
  * не-admin эндпоинтах). Неавторизованный → {ok:false,error:'access'} 403.
@@ -113,7 +118,10 @@ function graph_statusIdOf(string $funnelStage): string {
 
 /** Модуль → полный ответ-объект. $statusMap — карта graph_statusAbbrMap(). */
 function mapModule(array $item, array $statusMap = []): array {
-    [$num, $sname] = graph_numSname((string)($item['title'] ?? ''));
+    // num/sname: UF — главный источник (реальные поля портала), fallback — разбор title.
+    $num   = (string)($item['UF_CRM_14_MOD_NUM'] ?? '');
+    $sname = (string)($item['UF_CRM_14_MOD_SNAME'] ?? '');
+    if ($num === '' && $sname === '') [$num, $sname] = graph_numSname((string)($item['title'] ?? ''));
     $sid  = graph_statusIdOf((string)($item['stageId'] ?? ''));
     $stat = $statusMap[$sid] ?? null;
     return [
@@ -123,7 +131,7 @@ function mapModule(array $item, array $statusMap = []): array {
         'sname'       => $sname,
         'status'      => $stat['abbr'] ?? '',
         'statusColor' => $stat['color'] ?? '#ccc',
-        'stageId'     => isset($item['PARENT_ID_1042']) ? (int)$item['PARENT_ID_1042'] : null,
+        'stageId'     => isset($item['parentId1042']) ? (int)$item['parentId1042'] : null,
         'check'       => $item['UF_CRM_14_MOD_CHECK'] ?? '',
         'create'      => $item['UF_CRM_14_MOD_CREATE'] ?? '',
         'runD'        => $item['UF_CRM_14_MOD_RUN'] ?? '',
@@ -157,12 +165,10 @@ function buildPagination(int $start, int $total, int $pageSize): array {
 function graphListAll($b24, int $entityTypeId, int $dealId): array {
     $params = [
         'entityTypeId' => $entityTypeId,
-        'filter'       => ['PARENT_ID_' . GRAPH_ENTITY_DEAL => $dealId],
-        'select'       => ['id', 'title', 'stageId', 'UF_CRM_10_MST_DSTART', 'UF_CRM_10_MST_DFINISH',
-                           'UF_CRM_14_MOD_CHECK', 'UF_CRM_14_MOD_CREATE',
-                           'UF_CRM_14_MOD_RUN', 'UF_CRM_14_MOD_EDIT', 'UF_CRM_14_MOD_WAIT', 'UF_CRM_14_MOD_APPROVE',
-                           'UF_CRM_14_MOD_DAY2_RUN', 'UF_CRM_14_MOD_DAY2_EDIT',
-                           'UF_CRM_14_MOD_DAY2_WAIT', 'UF_CRM_14_MOD_DAY2_APPROVE', 'PARENT_ID_1042'],
+        // Без select (noselect): на портале ooordi кворк useOriginalUfNames —
+        // Y+select отдаёт только UF-поля, N+UPPER_CASE-UF молча выпадает из ответа.
+        // Y+noselect отдаёт всё: системные ключи camelCase, UF — UPPER_CASE (D-006).
+        'filter'       => ['parentId' . GRAPH_ENTITY_DEAL => $dealId],
         'start'        => 0,
     ];
 

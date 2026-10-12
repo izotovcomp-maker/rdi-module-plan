@@ -22,62 +22,41 @@ declare(strict_types=1);
  * @return callable(callable): mixed  function ($call) — $call($method, $params) вернёт ответ Б24 как массив
  */
 return function (callable $call) {
-    // Диагноз: почему график пустой. Гипотеза — фильтр PARENT_ID_1038 неверен,
-    // правильно parentId1038 (parentId + entityTypeId родителя).
-    // 1) поля 1050/1042: имена полей привязки (parent*) + ошибки, если fields упал
-    // 2) реальные сделки 1038 (по какой dealId пробовать)
-    // 3) list 1050 без фильтра (2 шт., поля id/title/parent*) — реальные значения привязки
-    // 4) list 1050 с фильтром parentId1038=1 и со старым PARENT_ID_1038=1 — сравнение
-    $fields1050 = $call('crm.item.fields', ['entityTypeId' => 1050]);
-    $fields1042 = $call('crm.item.fields', ['entityTypeId' => 1042]);
+    // Съём реальной структуры смарт-процессов 1038 (Сделки), 1050 (Модули), 1042.
+    // Пробный dealId: подставь реальный id сделки из карточки, где открыт вкладка.
+    $dealId = 12;
 
-    $errorsOf = function (array $res): ?string {
-        if (empty($res['error'])) return null;
-        return ($res['error'] ?? '') . ': ' . ($res['error_description'] ?? '');
+    $list1050 = $call('crm.item.list', [
+        'entityTypeId' => 1050,
+        'filter'       => ['parentId1038' => $dealId],
+        'start'        => 0,
+    ]);
+    $list1042 = $call('crm.item.list', [
+        'entityTypeId' => 1042,
+        'filter'       => ['parentId1038' => $dealId],
+        'start'        => 0,
+    ]);
+
+    // Ответ graph.php целиком (реальный пайплайн с mapStage/mapModule).
+    require_once APP_ROOT . '/api/graph.php';
+    $graph = graph_handle(b24(), $dealId);
+
+    $compactList = static function (array $res): array {
+        $items = (array)($res['result']['items'] ?? []);
+        $first = (array)($items[0] ?? []);
+        return [
+            'error'   => $res['error'] ?? null,
+            'total'   => $res['total'] ?? null,
+            'n_items' => count($items),
+            'first_keys' => array_slice(array_keys($first), 0, 20),
+        ];
     };
-    // только имена полей (компактно) + отдельным списком всё, что похоже на привязку
-    $namesOf = function (array $res) use ($errorsOf): array {
-        if ($e = $errorsOf($res)) return ['ERROR' => $e];
-        $names = array_keys((array)($res['fields'] ?? []));
-        $parent = array_values(array_filter($names, static fn($n) => stripos($n, 'parent') !== false
-            || stripos($n, 'PARENT') !== false));
-        return ['count' => count($names), 'parentFields' => $parent];
-    };
-
-    $deals = $call('crm.item.list', [
-        'entityTypeId' => 1038,
-        'select'       => ['id', 'title'],
-        'limit'        => 3,
-        'order'        => ['id' => 'DESC'],
-    ]);
-
-    $parentIdSelect = ['id', 'title', 'parentId1038', 'parentId1042', 'PARENT_ID_1038', 'PARENT_ID_1042'];
-    $listNoFilter = $call('crm.item.list', [
-        'entityTypeId' => 1050,
-        'select'       => $parentIdSelect,
-        'limit'        => 2,
-        'order'        => ['id' => 'DESC'],
-    ]);
-    $listByParentNew = $call('crm.item.list', [
-        'entityTypeId' => 1050,
-        'filter'       => ['parentId1038' => 1],
-        'select'       => $parentIdSelect,
-        'limit'        => 2,
-    ]);
-    $listByParentOld = $call('crm.item.list', [
-        'entityTypeId' => 1050,
-        'filter'       => ['PARENT_ID_1038' => 1],
-        'select'       => $parentIdSelect,
-        'limit'        => 2,
-    ]);
 
     return [
-        'note'            => 'Диагноз привязки смарт-процессов 1042/1050 к сделкам 1038.',
-        'fields_1050'     => $namesOf($fields1050),
-        'fields_1042'     => $namesOf($fields1042),
-        'deals_1038'      => $deals,
-        'list_1050_nofilter'  => $listNoFilter,
-        'list_1050_parentId1038'  => $listByParentNew,
-        'list_1050_PARENT_ID_1038' => $listByParentOld,
+        'note'      => 'Проверка graph_handle по сделке 12: ответ graph.php + сырые списки.',
+        'dealId'    => $dealId,
+        'graph'     => $graph,
+        'list_1050' => $compactList($list1050),
+        'list_1042' => $compactList($list1042),
     ];
 };
