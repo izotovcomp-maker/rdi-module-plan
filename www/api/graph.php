@@ -184,7 +184,10 @@ function graphListAll($b24, int $entityTypeId, int $dealId): array {
     }
     $result = (array)($first['result'] ?? []);
     $items  = array_values((array)($result['items'] ?? []));
-    $next   = $result['next'] ?? null;
+    // total и next — на ВЕРХНЕМ уровне ответа (Дебаг 2026-10-12: page1 next=50,
+    // page2 next=null). Внутри result их нет — чтение оттуда молча отключало
+    // пагинацию: график терял все страницы после первой (65 total → 50 в ответе).
+    $next   = $first['next'] ?? null;
 
     if ($next !== null) {
         $total = (int)($first['total'] ?? 0);
