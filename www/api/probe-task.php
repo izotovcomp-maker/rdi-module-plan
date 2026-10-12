@@ -38,8 +38,27 @@ return function (callable $call) {
     ]);
 
     // Ответ graph.php целиком (реальный пайплайн с mapStage/mapModule).
+    // GRAPH_SKIP_HTTP: без него require под веб-SAPI выполнял HTTP-блок graph.php.
+    define('GRAPH_SKIP_HTTP', true);
     require_once APP_ROOT . '/api/graph.php';
     $graph = graph_handle(b24(), $dealId);
+
+    // Сырые статусы воронки 1050: реальные STATUS_ID/NAME/COLOR всех категорий —
+    // для точной карты GRAPH_STATUS_ABBR (жёсткие коды не совпали — плашки из fallback).
+    $b24 = b24();
+    $cats = $b24->call('crm.category.list', ['entityTypeId' => 1050]);
+    $statusLists = [];
+    foreach ((array)(($cats['result'] ?? [])['categories'] ?? []) as $c) {
+        $cid = (int)($c['id'] ?? 0);
+        if ($cid <= 0) continue;
+        $st = $b24->call('crm.status.list', ['ENTITY_ID' => 'C1050:' . $cid]);
+        $rows = [];
+        foreach ((array)($st['result'] ?? []) as $r) {
+            if (!is_array($r)) continue;
+            $rows[] = ['STATUS_ID' => $r['STATUS_ID'] ?? '', 'NAME' => $r['NAME'] ?? '', 'COLOR' => $r['COLOR'] ?? ''];
+        }
+        $statusLists['C1050:' . $cid . ' (' . ($c['name'] ?? '') . ')'] = $rows;
+    }
 
     $compactList = static function (array $res): array {
         $items = (array)($res['result']['items'] ?? []);
@@ -53,9 +72,10 @@ return function (callable $call) {
     };
 
     return [
-        'note'      => 'Проверка graph_handle по сделке 12: ответ graph.php + сырые списки.',
+        'note'      => 'graph_handle по сделке 12 + сырые статусы воронки 1050 (все категории).',
         'dealId'    => $dealId,
         'graph'     => $graph,
+        'status_lists_1050' => $statusLists,
         'list_1050' => $compactList($list1050),
         'list_1042' => $compactList($list1042),
     ];

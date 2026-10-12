@@ -51,10 +51,10 @@ const GRAPH_MAX_PAGES     = 20;
 /** STATUS_ID воронки модулей → сокращение (жёстко, из ТЗ). */
 const GRAPH_STATUS_ABBR = [
     'NEW'         => 'Зап',
-    'PREPARATION' => 'Расм',
+    'PREPARATION' => 'Расс',
     'CLIENT'      => 'Разр',
     'UC_AJTX21'   => 'Корр',
-    'UC_PM02XS'   => 'Ожид',
+    'UC_PM02XS'   => 'Ож',
     'UC_M71TWU'   => 'Согл',
     'SUCCESS'     => 'Завр',
     'FAIL'        => 'Анну',
@@ -92,9 +92,11 @@ function graph_numSname(string $title): array {
 }
 
 /**
- * Стадия воронки модуля → {abbr, color}. crm.status.list ENTITY_ID 'C1050:<id категории>'
- * → карта STATUS_ID → {abbr, color}. Известные STATUS_ID — из GRAPH_STATUS_ABBR;
- * пользовательские — abbr = первые 4 символа NAME, color = COLOR или '#ccc'.
+ * Стадия воронки модуля → {abbr, color}. crm.status.list на этом портале возвращает
+ * СМЕШАННЫЙ список всех воронок (голые NEW/CLIENT от лидов перекрывают нужные),
+ * поэтому карта ключуется ПОЛНЫМ STATUS_ID ('DT1050_20:NEW' — как stageId модуля),
+ * а abbr берётся по суффиксу из GRAPH_STATUS_ABBR (пользовательские — первые 4
+ * символа NAME, color = COLOR или '#ccc').
  */
 function graph_statusAbbrMap(array $rows): array {
     $map = [];
@@ -102,7 +104,8 @@ function graph_statusAbbrMap(array $rows): array {
         if (!is_array($r)) continue;
         $sid = (string)($r['STATUS_ID'] ?? '');
         if ($sid === '') continue;
-        $abbr  = GRAPH_STATUS_ABBR[$sid] ?? mb_substr(trim((string)($r['NAME'] ?? '')), 0, 4);
+        $suffix = graph_statusIdOf($sid);
+        $abbr  = GRAPH_STATUS_ABBR[$suffix] ?? mb_substr(trim((string)($r['NAME'] ?? '')), 0, 4);
         $color = (string)($r['COLOR'] ?? '');
         $map[$sid] = ['abbr' => $abbr, 'color' => $color !== '' ? $color : '#ccc'];
     }
@@ -122,8 +125,11 @@ function mapModule(array $item, array $statusMap = []): array {
     $num   = (string)($item['UF_CRM_14_MOD_NUM'] ?? '');
     $sname = (string)($item['UF_CRM_14_MOD_SNAME'] ?? '');
     if ($num === '' && $sname === '') [$num, $sname] = graph_numSname((string)($item['title'] ?? ''));
-    $sid  = graph_statusIdOf((string)($item['stageId'] ?? ''));
-    $stat = $statusMap[$sid] ?? null;
+    // Статус модуля — по ПОЛНОМУ stageId ('DT1050_20:NEW'); fallback — суффикс
+    // (если полного ключа в списке статусов нет).
+    $full = (string)($item['stageId'] ?? '');
+    $sid  = graph_statusIdOf($full);
+    $stat = $statusMap[$full] ?? $statusMap[$sid] ?? null;
     return [
         'id'          => (int)($item['id'] ?? 0),
         'title'       => (string)($item['title'] ?? ''),
@@ -235,6 +241,14 @@ function graph_statusMap($b24): array {
  * с closure-заглушкой. Ошибка REST → RuntimeException.
  */
 function graph_handle($b24, int $dealId): array {
+    // Заголовок сделки: crm.item.get на портале приходит с пустым title —
+    // проверенный путь crm.item.list с filter:id (Дебаг 2026-10-12).
+    $deal = $b24->call('crm.item.list', ['entityTypeId' => GRAPH_ENTITY_DEAL, 'filter' => ['id' => $dealId]]);
+    if (!empty($deal['error'])) {
+        throw new RuntimeException('crm.item.list: ' . ($deal['error_description'] ?? $deal['error']));
+    }
+    $first = (array)(($deal['result']['items'] ?? [])[0] ?? []);
+    $dealTitle = (string)($first['title'] ?? '');
     $stages    = array_map('mapStage',  graphListAll($b24, GRAPH_ENTITY_STAGE, $dealId));
     $statusMap = graph_statusMap($b24);
     $modules   = array_map(static fn(array $it): array => mapModule($it, $statusMap),
@@ -244,6 +258,7 @@ function graph_handle($b24, int $dealId): array {
     return [
         'ok'         => true,
         'dealId'     => $dealId,
+        'dealTitle'  => $dealTitle,
         'stages'     => $stages,
         'modules'    => $modules,
         'truncated'  => $truncated, // cap страниц пагинации достигнут — данные могут быть неполными
@@ -391,8 +406,10 @@ function graphFail(int $code, string $error): void {
     exit;
 }
 
-// HTTP-часть не выполняется в CLI (локальный тест graph_handle с заглушкой B24).
-if (PHP_SAPI === 'cli') return;
+// HTTP-часть не выполняется в CLI и когда graph.php подключают как библиотеку
+// (probe-task.php: нужен только graph_handle — без GRAPH_SKIP_HTTP require под
+// веб-SAPI выполнял HTTP-блок и убивал запрос graphFail'ом).
+if (PHP_SAPI === 'cli' || defined('GRAPH_SKIP_HTTP')) return;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

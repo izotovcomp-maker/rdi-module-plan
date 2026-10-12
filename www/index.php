@@ -98,6 +98,9 @@ if (!$session) {
 }
 
 // ── 4. Render app ────────────────────────────────────────────────────────
+// Без кэширования: иначе браузер держит старый HTML со старыми ?v= у css/js,
+// и обновления фронта не доходят до пользователя (грабля 2026-10-12).
+header('Cache-Control: no-store');
 $html = file_get_contents(__DIR__ . '/template.html');
 
 // dealId из placement-контекста: B24 шлёт его в POST PLACEMENT_OPTIONS

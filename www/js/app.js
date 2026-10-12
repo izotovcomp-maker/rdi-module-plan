@@ -311,7 +311,7 @@
 
   var STEP_MAP = { '1d': 1, '1w': 7, '2w': 14, '3w': 21, '4w': 28 };
   /* Порядок стадий воронки (для сортировки по статусу); аббревиатуры — с сервера. */
-  var STATUS_ORDER = ['Зап', 'Расм', 'Разр', 'Корр', 'Ожид', 'Согл', 'Завр', 'Анну'];
+  var STATUS_ORDER = ['Зап', 'Расс', 'Разр', 'Корр', 'Ож', 'Согл', 'Завр', 'Анну'];
   /* Завершённые стадии (низкий акцент); тёмный фон плашки — белый текст. */
   var STATUS_COMPLETED = ['Завр', 'Анну'];
   var STATUS_DARK_BG = ['Зап'];
@@ -586,7 +586,7 @@
       clearEdits(edits);
       state.checked.clear();
       hScrolledByUser = false;
-      $('dealTitle').textContent = 'Сделка #' + dealId;
+      $('dealTitle').textContent = res.dealTitle || ('Сделка #' + dealId);
       var empty = deal.modules.length === 0;
       $('emptyNote').hidden = !empty;
       $('chart').hidden = empty;
