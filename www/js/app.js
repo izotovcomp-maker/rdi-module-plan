@@ -245,7 +245,7 @@
       isoOf = G.isoOf, addDaysIso = G.addDaysIso, daysBetween = G.daysBetween,
       runDays = G.runDays, yearLabels = G.yearLabels, monthLabels = G.monthLabels,
       STEP_MAP = G.STEP_MAP, stepDaysOf = G.stepDaysOf, buildCols = G.buildCols,
-      barColumns = G.barColumns, defaultOffsetIso = G.defaultOffsetIso,
+      layoutBars = G.layoutBars, defaultOffsetIso = G.defaultOffsetIso,
       todayIndex = G.todayIndex, MONTHS = G.MONTHS, DAY_MS = G.DAY_MS,
       STATUS_ORDER = G.STATUS_ORDER, STATUS_COMPLETED = G.STATUS_COMPLETED,
       STATUS_DARK_BG = G.STATUS_DARK_BG, DUR_KEYS = G.DUR_KEYS,
@@ -530,19 +530,25 @@
 
   function barsFor(m, offsetIso, cols, dim, withFlag, icon) {
     var bars = barsForModule(m, deal.stageColors);
-    var html = bars.map(function (b) {
-      var p = barColumns(offsetIso, state.step, cols.length, b.start, b.end);
-      if (!p.visible) return '';
-      // Цвет полосы — по палитре стадий из Б24 (b.color — КОД стадии);
+    // Пиксельная разкладка (план T8): пропорциональная ширина, min 3px, сдвиг
+    // коротких полос внутри колонки — вместо прежних колонок barColumns.
+    var laid = layoutBars(bars, {
+      offsetIso: offsetIso, stepDays: stepDaysOf(state.step), colW: COL_W, nCols: cols.length,
+    });
+    var visible = laid.filter(function (p) { return p.visible; });
+    var html = visible.map(function (p) {
+      // Цвет полосы — по палитре стадий из Б24 (p.color — КОД стадии);
       // классы accent/secondary/dimmed не трогаем — они дают затемнение.
-      return '<div class="gantt-bar ' + b.kind + (dim ? ' dimmed' : '') + '" style="left:' + (p.start * COL_W) + 'px;width:' +
-        (p.width * COL_W - 2) + 'px;background:' + esc(deal.stageColors[b.color] || '#ccc') + '" title="' + esc(b.title) + '"></div>';
+      return '<div class="gantt-bar ' + p.kind + (dim ? ' dimmed' : '') + '" style="left:' + p.leftPx + 'px;width:' +
+        Math.max(3, p.widthPx - 2) + 'px;background:' + esc(deal.stageColors[p.color] || '#ccc') + '" title="' +
+        esc(p.title + ': ' + fmtD(parseD(p.start)) + '–' + fmtD(parseD(p.end))) + '"></div>';
     }).join('');
     var flag = '';
-    if (withFlag && bars.length) {
-      var last = bars[bars.length - 1];
-      var pf = barColumns(offsetIso, state.step, cols.length, last.start, last.end);
-      flag = pf.visible ? '<div class="gantt-flag" style="left:' + (pf.start * COL_W + pf.width * COL_W) + 'px" title="' + (icon === '🗑️' ? 'Работы аннулированы' : 'Все модули завершены') + '">' + icon + '</div>' : '';
+    if (withFlag && visible.length) {
+      // Флаг — по последней видимой полосе в пикселях.
+      var last = visible[visible.length - 1];
+      flag = '<div class="gantt-flag" style="left:' + (last.leftPx + last.widthPx) + 'px" title="' +
+        (icon === '🗑️' ? 'Работы аннулированы' : 'Все модули завершены') + '">' + icon + '</div>';
     }
     return html + flag;
   }

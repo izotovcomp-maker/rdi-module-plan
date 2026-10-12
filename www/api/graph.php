@@ -22,7 +22,11 @@ declare(strict_types=1);
  *           DT1050_20:NEW): crm.category.list (entityTypeId=1050, isDefault=Y) →
  *           crm.status.list (ENTITY_ID='C1050:<id>'), карта STATUS_ID → аббревиатура/цвет.
  * stageColors — та же crm.status.list, ключ = суффикс STATUS_ID, значение = COLOR
- *           ('' → '#ccc') — палитра полос Ганта на клиенте.
+ *           ('' → '#ccc') — палитра полос Ганта на клиенте. Список на портале
+ *           СМЕШАННЫЙ (147 строк всех воронок), поэтому свёртка по суффиксу идёт
+ *           только по строкам с префиксом воронки модулей 'DT1050_<catId>:' —
+ *           иначе чужие воронки (голый CLIENT лидов, «ТКП» DT1038_22:CLIENT)
+ *           перебивают эталонные цвета.
  *
  * Кворк портала ooordi (D-006): useOriginalUfNames=Y (его подставляет b24()) вместе
  * с select молча выкидывает системные поля из ответа, а N+select — UF-поля.
@@ -222,7 +226,10 @@ function graphListAll($b24, int $entityTypeId, int $dealId): array {
 /**
  * Карта статусов воронки модулей: crm.category.list (entityTypeId=1050, берём
  * isDefault=Y, иначе первую) → crm.status.list (ENTITY_ID='C1050:<id>').
- * Ошибка REST → RuntimeException.
+ * Возвращает ['map' => graph_statusAbbrMap(...), 'prefix' => 'DT1050_<catId>:']:
+ * prefix — префикс полного STATUS_ID воронки модулей (crm.status.list на портале
+ * отдаёт смешанный список всех воронок, stageColors фильтруется по префиксу).
+ * Нет категории → ['map' => [], 'prefix' => '']. Ошибка REST → RuntimeException.
  */
 function graph_statusMap($b24): array {
     $cat = $b24->call('crm.category.list', ['entityTypeId' => GRAPH_ENTITY_MODULE]);
@@ -235,12 +242,15 @@ function graph_statusMap($b24): array {
         if (is_array($c) && (($c['isDefault'] ?? '') === 'Y' || ($c['isDefault'] ?? false) === true)) { $chosen = $c; break; }
     }
     if ($chosen === null && $cats !== []) $chosen = $cats[0];
-    if (!is_array($chosen) || empty($chosen['id'])) return [];
+    if (!is_array($chosen) || empty($chosen['id'])) return ['map' => [], 'prefix' => ''];
     $st = $b24->call('crm.status.list', ['ENTITY_ID' => 'C1050:' . (int)$chosen['id']]);
     if (!empty($st['error'])) {
         throw new RuntimeException('crm.status.list: ' . ($st['error_description'] ?? $st['error']));
     }
-    return graph_statusAbbrMap((array)($st['result'] ?? []));
+    return [
+        'map'    => graph_statusAbbrMap((array)($st['result'] ?? [])),
+        'prefix' => 'DT' . GRAPH_ENTITY_MODULE . '_' . (int)$chosen['id'] . ':',
+    ];
 }
 
 /**
@@ -257,14 +267,22 @@ function graph_handle($b24, int $dealId): array {
     $first = (array)(($deal['result']['items'] ?? [])[0] ?? []);
     $dealTitle = (string)($first['title'] ?? '');
     $stages    = array_map('mapStage',  graphListAll($b24, GRAPH_ENTITY_STAGE, $dealId));
-    $statusMap = graph_statusMap($b24);
+    $statusData = graph_statusMap($b24);
+    $statusMap  = $statusData['map'];
     $modules   = array_map(static fn(array $it): array => mapModule($it, $statusMap),
                            graphListAll($b24, GRAPH_ENTITY_MODULE, $dealId));
     $truncated = count($stages) >= GRAPH_MAX_PAGES * GRAPH_PAGE_SIZE
               || count($modules) >= GRAPH_MAX_PAGES * GRAPH_PAGE_SIZE;
-    // Палитра Ганта: суффикс STATUS_ID → цвет (клиент маппит коды полос на цвета)
+    // Палитра Ганта: суффикс STATUS_ID → цвет (клиент маппит коды полос на цвета).
+    // Свёртка ТОЛЬКО по строкам воронки модулей (prefix 'DT1050_<catId>:'):
+    // crm.status.list отдаёт смешанный список всех воронок, суффиксы чужих
+    // (голый CLIENT лидов, «ТКП» DT1038_22:CLIENT) перебивали эталонные цвета.
     $stageColors = [];
-    foreach ($statusMap as $sid => $v) $stageColors[graph_statusIdOf($sid)] = $v['color'];
+    if ($statusData['prefix'] !== '') {
+        foreach ($statusMap as $sid => $v) {
+            if (strpos($sid, $statusData['prefix']) === 0) $stageColors[graph_statusIdOf($sid)] = $v['color'];
+        }
+    }
     return [
         'ok'          => true,
         'dealId'      => $dealId,

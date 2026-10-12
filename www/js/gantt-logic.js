@@ -124,6 +124,43 @@ var GanttLogic = (function () {
     return bars;
   }
 
+  /* Пиксельная разкладка полос (план T8): пропорциональная ширина (включительно),
+     min 3px, клиппинг слева по offset, сдвиг коротких полос внутри одной колонки
+     (idx×3px по порядку start, cap colW−3), чтобы несколько 1-дневных стадий
+     в одной колонке были видны одновременно. bars — выход barsForModule,
+     ctx = {offsetIso, stepDays, colW, nCols}. */
+  function layoutBars(bars, ctx) {
+    var pxPerDay = ctx.colW / ctx.stepDays;
+    var laid = (bars || []).map(function (b) {
+      var leftPx = daysBetween(ctx.offsetIso, b.start) * pxPerDay;
+      var widthPx = Math.max(3, (daysBetween(b.start, b.end) + 1) * pxPerDay);
+      var visible = daysBetween(ctx.offsetIso, b.end) >= 0;
+      var clipped = false;
+      if (!visible) return Object.assign({}, b, { leftPx: leftPx, widthPx: widthPx, visible: false });
+      if (leftPx < 0) {
+        /* клиппинг слева: честный видимый кусок от offset до end, но ≥3px */
+        clipped = true;
+        leftPx = 0;
+        widthPx = Math.max(3, (daysBetween(ctx.offsetIso, b.end) + 1) * pxPerDay);
+      }
+      return Object.assign({}, b, { leftPx: leftPx, widthPx: widthPx, visible: true, clipped: clipped });
+    });
+    /* Сдвиг коротких полос (widthPx < colW), начинающихся в одной колонке.
+       Клипнутые (start < offset) не сдвигаем — у них leftPx = 0 по контракту. */
+    var groups = {};
+    laid.forEach(function (p) {
+      if (!p.visible || p.clipped || p.widthPx >= ctx.colW) return;
+      var col = Math.floor(p.leftPx / ctx.colW);
+      (groups[col] = groups[col] || []).push(p);
+    });
+    Object.keys(groups).forEach(function (col) {
+      groups[col]
+        .sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; })
+        .forEach(function (p, idx) { p.leftPx += Math.min(idx * 3, ctx.colW - 3); });
+    });
+    return laid;
+  }
+
   /* Пустые длительности → 0: мутирует модули (сразу после normalizeModule) и
      дописывает 0 в editsMap[id][k], если ключа там ещё нет (авто-правка на
      отправку). Уже заполненные значения и существующие правки не трогаем. */
@@ -171,7 +208,7 @@ var GanttLogic = (function () {
            addDaysIso: addDaysIso, daysBetween: daysBetween, runDays: runDays,
            yearLabels: yearLabels, monthLabels: monthLabels, STEP_MAP: STEP_MAP, stepDaysOf: stepDaysOf,
            buildCols: buildCols, barColumns: barColumns, defaultOffsetIso: defaultOffsetIso,
-           todayIndex: todayIndex, barsForModule: barsForModule,
+           todayIndex: todayIndex, barsForModule: barsForModule, layoutBars: layoutBars,
            seedZeroDurations: seedZeroDurations, validateEdits: validateEdits };
 })();
 if (typeof window !== 'undefined') window.GanttLogic = GanttLogic;

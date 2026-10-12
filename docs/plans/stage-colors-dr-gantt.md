@@ -190,3 +190,36 @@ md5-сверка → живая проверка вкладки: ДР-колон
 ## Не входит (YAGNI)
 Пересчёт дат стадий в Б24; изменения БП портала; макет mock/; авто-бинд
 плейсментов; кэш crm.status.list (старое замечание B4 — отдельно).
+
+---
+
+## Дополнение после живой проверки (2026-10-12): T7/T8
+
+| # | Задача | Файлы | Верификация | Статус |
+|---|--------|-------|-------------|--------|
+| T7 | Фикс №1: stageColors только из воронки `DT1050_<catId>:` | `www/api/graph.php`, `/tmp/kilo/test-b1.php` | тест-b1 RED→GREEN, `php -l` | ☐ |
+| T8 | Фикс №2: слэбы 3px со сдвигом, пропорциональная ширина | `www/js/gantt-logic.js`, `www/js/app.js`, `/tmp/kilo/test-gantt.js` | node-тест RED→GREEN, `node --check` | ☐ |
+
+### T7 — stageColors по префиксу воронки (Дебаг 2026-10-12 подтверждён)
+`crm.status.list` (ENTITY_ID=C1050:20) вернул 147 строк всех воронок портала.
+Коллизия: суффикс `CLIENT` последним в списке встречается у `DT1038_22:CLIENT`
+«ТКП» #fff55a → stageColors['CLIENT'] = жёлтый (баг «жёлтая Разработка»).
+Эталон DT1050_20: NEW #000000, PREPARATION #88b9ff, CLIENT #10e5fc,
+UC_AJTX21 #ace9fb, UC_PM02XS #fff300, UC_M71TWU #00a74c, SUCCESS #00ff00,
+FAIL #ff0000.
+- `graph_statusMap()` → `['map' => …, 'prefix' => 'DT1050_<catId>:']`
+  (префикс = 'DT' + entityTypeId 1050 + '_' + id категории + ':').
+- `graph_handle()`: stageColors сворачивается ТОЛЬКО из строк map с этим префиксом.
+- Тест-b1: stub со смешанным списком (голый CLIENT #fff55a, DT1042_16:PREPARATION
+  #fff300 + DT1050_20:*) → stageColors строго эталон; бейдж-карта не фильтруется.
+
+### T8 — видимость ненулевых стадий (вариант (a), утверждён)
+- `gantt-logic.js`: новая чистая `layoutBars(bars, ctx)`; ctx={offsetIso, stepDays,
+  colW, nCols} → [{key,title,color,leftPx,widthPx,visible}]:
+  widthPx = max(3, (daysBetween(start,end)+1) × colW/stepDays); полосы уже колонки,
+  начинающиеся в одной колонке, получают сдвиг idx×3px (cap colW−3); клиппинг как
+  раньше (end<offset → невидима, start<offset → обрезка слева).
+- `app.js barsFor()`: рендер по leftPx/widthPx (вместо колонок), тултип
+  «Стадия: дд.мм–дд.мм»; флаг позиции — по последней полосе в px.
+- Node-тест: 1-день при шагах 1д/1Н/2Н; три 1-дневные стадии в одной колонке видны
+  одновременно; 73-дневная — без сдвига; нулевые/отсутствие дат — как раньше.
