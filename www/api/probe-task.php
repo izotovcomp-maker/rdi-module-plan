@@ -22,39 +22,62 @@ declare(strict_types=1);
  * @return callable(callable): mixed  function ($call) — $call($method, $params) вернёт ответ Б24 как массив
  */
 return function (callable $call) {
-    // Съём реальной структуры смарт-процессов 1038 (Сделки), 1050 (Модули), 1042.
-    // Пробный dealId (PARENT_ID_1038): если известно реальное id сделки из
-    // placement-контекста — подставь его, иначе оставь 1.
-    $dealId = 1;
-
+    // Диагноз: почему график пустой. Гипотеза — фильтр PARENT_ID_1038 неверен,
+    // правильно parentId1038 (parentId + entityTypeId родителя).
+    // 1) поля 1050/1042: имена полей привязки (parent*) + ошибки, если fields упал
+    // 2) реальные сделки 1038 (по какой dealId пробовать)
+    // 3) list 1050 без фильтра (2 шт., поля id/title/parent*) — реальные значения привязки
+    // 4) list 1050 с фильтром parentId1038=1 и со старым PARENT_ID_1038=1 — сравнение
     $fields1050 = $call('crm.item.fields', ['entityTypeId' => 1050]);
     $fields1042 = $call('crm.item.fields', ['entityTypeId' => 1042]);
-    $list1050 = $call('crm.item.list', [
+
+    $errorsOf = function (array $res): ?string {
+        if (empty($res['error'])) return null;
+        return ($res['error'] ?? '') . ': ' . ($res['error_description'] ?? '');
+    };
+    // только имена полей (компактно) + отдельным списком всё, что похоже на привязку
+    $namesOf = function (array $res) use ($errorsOf): array {
+        if ($e = $errorsOf($res)) return ['ERROR' => $e];
+        $names = array_keys((array)($res['fields'] ?? []));
+        $parent = array_values(array_filter($names, static fn($n) => stripos($n, 'parent') !== false
+            || stripos($n, 'PARENT') !== false));
+        return ['count' => count($names), 'parentFields' => $parent];
+    };
+
+    $deals = $call('crm.item.list', [
+        'entityTypeId' => 1038,
+        'select'       => ['id', 'title'],
+        'limit'        => 3,
+        'order'        => ['id' => 'DESC'],
+    ]);
+
+    $parentIdSelect = ['id', 'title', 'parentId1038', 'parentId1042', 'PARENT_ID_1038', 'PARENT_ID_1042'];
+    $listNoFilter = $call('crm.item.list', [
         'entityTypeId' => 1050,
-        'filter'       => ['PARENT_ID_1038' => $dealId],
-        'select'       => ['id', 'title', 'PARENT_ID_1038'],
+        'select'       => $parentIdSelect,
+        'limit'        => 2,
+        'order'        => ['id' => 'DESC'],
+    ]);
+    $listByParentNew = $call('crm.item.list', [
+        'entityTypeId' => 1050,
+        'filter'       => ['parentId1038' => 1],
+        'select'       => $parentIdSelect,
+        'limit'        => 2,
+    ]);
+    $listByParentOld = $call('crm.item.list', [
+        'entityTypeId' => 1050,
+        'filter'       => ['PARENT_ID_1038' => 1],
+        'select'       => $parentIdSelect,
         'limit'        => 2,
     ]);
 
-    // Оставляем только имена полей + типы, чтобы вывод был компактным.
-    $compactFields = function (array $res): array {
-        $out = [];
-        foreach (($res['fields'] ?? []) as $name => $f) {
-            $out[$name] = [
-                'type'     => $f['type'] ?? null,
-                'title'    => $f['title'] ?? ($f['formLabel'] ?? null),
-                'isMultiple' => $f['isMultiple'] ?? null,
-                'items'    => $f['items'] ?? null,
-            ];
-        }
-        return $out;
-    };
-
     return [
-        'note'                 => 'Структура смарт-процессов 1038/1042/1050 + примеры записей 1050.',
-        'dealId_probe'         => $dealId,
-        'fields_entityType_1050' => $compactFields($fields1050),
-        'fields_entityType_1042' => $compactFields($fields1042),
-        'list_1050_by_parent'  => $list1050,
+        'note'            => 'Диагноз привязки смарт-процессов 1042/1050 к сделкам 1038.',
+        'fields_1050'     => $namesOf($fields1050),
+        'fields_1042'     => $namesOf($fields1042),
+        'deals_1038'      => $deals,
+        'list_1050_nofilter'  => $listNoFilter,
+        'list_1050_parentId1038'  => $listByParentNew,
+        'list_1050_PARENT_ID_1038' => $listByParentOld,
     ];
 };
