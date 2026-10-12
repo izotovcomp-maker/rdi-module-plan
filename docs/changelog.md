@@ -24,6 +24,14 @@ description: Хронология того, что уже сделано — н�
 
 <!-- Новые записи добавляй СВЕРХУ, сразу под этой строкой -->
 
+## 2026-10-12 · Грабли задокументированы: правило в rules-b24 + правки шаблона
+- Новое правило rule-b24-crm-item-list-select-and-parent-quirks (кворки select/
+  parentId/fields) + строка в INDEX.md
+- Шаблон tmpl-b24-php-kilo: deploy.sh падает с ошибкой без блока Caddy (exit 1);
+  авто-бинд плейсментов при установке (api/placements.php + index.php, D-004 шаблона);
+  changelog/decisions шаблона обновлены. README шаблона не успел (отказ записи) —
+  дописать: строки про bind.php в дереве api/ и в «Что заменить»
+
 ## 2026-10-12 · Починен график: noselect + parentId1038 + UF num/sname (D-006)
 - Изоляция кворка (3 Дебага): `Y+select` → только UF, `N+select` → UF выкинуты,
   `Y+noselect` → всё; `crm.item.fields` на портале пуст; фильтр — `parentId1038/1042`
