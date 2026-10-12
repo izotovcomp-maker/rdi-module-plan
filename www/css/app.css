@@ -1,6 +1,6 @@
 /* Каркас макета «График модулей» (задача M2): 3 зоны, sticky, единый скролл.
    Токены — в css/style.css (копия www/css/style.css). Новые цвета — только через них.
-   Схема: одна общая сетка колонок (--grid-cols задаёт mock.js), поэтому таблица
+   Схема: одна общая сетка колонок (--grid-cols задаёт app.js setGridCols), поэтому таблица
    и Гант выровнены по строкам и имеют ОДНУ вертикальную прокрутку (.chart). */
 
 body {
@@ -57,7 +57,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 .chart-inner { width: max-content; min-width: 100%; }
 
-/* Общая сетка строк: колонки задаёт --grid-cols (имя + 7 колонок таблицы + N ячеек Ганта) */
+/* Общая сетка строк: колонки задаёт --grid-cols (имя + 9 колонок таблицы + N ячеек Ганта) */
 .row { display: grid; grid-template-columns: var(--grid-cols); --row-h: 32px; }
 .row > div { height: var(--row-h); padding: 0 10px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: calc(var(--row-h) - 1px); }
 .row > div.num { text-align: right; font-family: var(--font-mono); padding: 0 4px; }

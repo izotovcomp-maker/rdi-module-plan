@@ -238,34 +238,19 @@
 
   // ── График модулей ──────────────────────────────────────────────────────────
 
-  var parseD = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
-  var fmtD = function (d) { return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2); };
-  var fmtDyy = function (d) { return fmtD(d) + '.' + String(d.getFullYear()).slice(-2); };
-  /* дд.мм.гг → ISO; null, если неполно или неверная дата. */
-  function parseDyy(s) {
-    var m = /^(\d{2})\.(\d{2})\.(\d{2})$/.exec((s || '').trim());
-    if (!m) return null;
-    var iso = '20' + m[3] + '-' + m[2] + '-' + m[1];
-    var d = parseD(iso);
-    return (d.getDate() === +m[1] && d.getMonth() + 1 === +m[2]) ? iso : null;
-  }
-  /* Подпись года для верхней полосы календаря (год на первой колонке года). */
-  function yearLabels(cols) {
-    return cols.map(function (iso, i) {
-      var y = parseD(iso).getFullYear(), prev = i ? parseD(cols[i - 1]).getFullYear() : null;
-      return (i === 0 || prev !== y) ? String(y) : '';
-    });
-  }
-  var MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-  var DAY_MS = 24 * 3600 * 1000;
-
-  /* ── Чистая логика (перенос из макета) ───────────────────────────────── */
-
-  /* Длительность разработки «Р»: datediff(check, create) + 1 дней. */
-  function runDays(m) {
-    if (!m.check || !m.create) return '';
-    return Math.round((parseD(m.create) - parseD(m.check)) / DAY_MS) + 1;
-  }
+  // Чистая логика вынесена в js/gantt-logic.js (план stage-colors-dr-gantt, T3):
+  // тестируется в node отдельно, здесь — только рендер и работа с DOM.
+  var G = window.GanttLogic;
+  var parseD = G.parseD, fmtD = G.fmtD, fmtDyy = G.fmtDyy, parseDyy = G.parseDyy,
+      isoOf = G.isoOf, addDaysIso = G.addDaysIso, daysBetween = G.daysBetween,
+      runDays = G.runDays, yearLabels = G.yearLabels, monthLabels = G.monthLabels,
+      STEP_MAP = G.STEP_MAP, stepDaysOf = G.stepDaysOf, buildCols = G.buildCols,
+      barColumns = G.barColumns, defaultOffsetIso = G.defaultOffsetIso,
+      todayIndex = G.todayIndex, MONTHS = G.MONTHS, DAY_MS = G.DAY_MS,
+      STATUS_ORDER = G.STATUS_ORDER, STATUS_COMPLETED = G.STATUS_COMPLETED,
+      STATUS_DARK_BG = G.STATUS_DARK_BG, DUR_KEYS = G.DUR_KEYS,
+      barsForModule = G.barsForModule, seedZeroDurations = G.seedZeroDurations,
+      validateEdits = G.validateEdits;
 
   function cellValue(m, key) {
     if (key === 'title') return m.title;
@@ -309,98 +294,15 @@
 
   /* ── Гант: масштаб, сетка, полосы ────────────────────────────────────── */
 
-  var STEP_MAP = { '1d': 1, '1w': 7, '2w': 14, '3w': 21, '4w': 28 };
-  /* Порядок стадий воронки (для сортировки по статусу); аббревиатуры — с сервера. */
-  var STATUS_ORDER = ['Зап', 'Расс', 'Разр', 'Корр', 'Ож', 'Согл', 'Завр', 'Анну'];
-  /* Завершённые стадии (низкий акцент); тёмный фон плашки — белый текст. */
-  var STATUS_COMPLETED = ['Завр', 'Анну'];
-  var STATUS_DARK_BG = ['Зап'];
-
-  function stepDaysOf(step) { return STEP_MAP[step] || 7; }
-
-  var isoOf = function (d) {
-    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
-  };
-  function addDaysIso(iso, n) { var d = parseD(iso); d.setDate(d.getDate() + n); return isoOf(d); }
-  function daysBetween(isoA, isoB) { return Math.round((parseD(isoB) - parseD(isoA)) / DAY_MS); }
-
-  function defaultOffsetIso(minIso, step) {
-    if (!minIso) return null;
-    return addDaysIso(minIso, -stepDaysOf(step));
-  }
-
-  function buildCols(offsetIso, step, lastIso) {
-    var sd = stepDaysOf(step);
-    var span = Math.max(0, daysBetween(offsetIso, lastIso || offsetIso));
-    var n = Math.max(6, Math.ceil((span + 1) / sd));
-    var cols = [];
-    for (var i = 0; i < n; i++) cols.push(addDaysIso(offsetIso, i * sd));
-    return cols;
-  }
-
-  function barColumns(offsetIso, step, nCols, startIso, endIso) {
-    var sd = stepDaysOf(step);
-    if (daysBetween(offsetIso, endIso) < 0) return { start: 0, width: 0, visible: false };
-    var start = Math.floor(daysBetween(offsetIso, startIso) / sd);
-    var end = Math.floor(daysBetween(offsetIso, endIso) / sd);
-    var clippedLeft = start < 0;
-    start = Math.max(0, start);
-    end = Math.min(nCols - 1, end);
-    var width = Math.max(1, end - start + 1);
-    return { start: start, width: width, visible: true, clippedLeft: clippedLeft };
-  }
-
-  /* 6 диапазонов стадий модуля (правила из ТЗ):
-     Запуск: dstart этапа → runD; Рассмотрение: runD → check; Разработка: check → create;
-     Корректировка: create → +dayEdit; Ожидание: → +dayWait; Согласование: → +dayApprove.
-     runD: хранимый m.runD; если dayRun правлен (или runD пуст) — из dstart + dayRun. */
-  function barsForModule(m, stages, editsMap) {
-    var stg = (stages || []).find(function (s) { return s.id === (m.parentStageId || m.stageId); });
-    var dstart = stg && stg.dstart;
-    var dayRunEdited = editsMap && editsMap[m.id] && Object.prototype.hasOwnProperty.call(editsMap[m.id], 'dayRun');
-    var runD = (dstart && (dayRunEdited || !m.runD)) ? addDaysIso(dstart, m.dayRun || 0) : (m.runD || null);
-    if (!m.check || !m.create) {
-      var noDates = [];
-      if (dstart && runD) noDates.push({ key: 'run', kind: 'secondary', title: 'Запуск', start: dstart, end: runD });
-      return noDates;
-    }
-    var out = [];
-    if (runD) out.push({ key: 'run', kind: 'secondary', title: 'Запуск', start: dstart, end: runD });
-    if (runD && runD <= m.check) out.push({ key: 'ras', kind: 'secondary', title: 'Рассмотрение', start: runD, end: m.check });
-    out.push({ key: 'main', kind: 'accent', title: 'Разработка', start: m.check, end: m.create });
-    var editEnd = addDaysIso(m.create, Number(m.dayEdit) || 0);
-    if (Number(m.dayEdit) > 0) out.push({ key: 'edit', kind: 'secondary', title: 'Корректировка', start: m.create, end: editEnd });
-    var waitEnd = addDaysIso(editEnd, Number(m.dayWait) || 0);
-    if (Number(m.dayWait) > 0) out.push({ key: 'wait', kind: 'secondary', title: 'Ожидание', start: editEnd, end: waitEnd });
-    var apprEnd = addDaysIso(waitEnd, Number(m.dayApprove) || 0);
-    if (Number(m.dayApprove) > 0) out.push({ key: 'approve', kind: 'secondary', title: 'Согласование', start: waitEnd, end: apprEnd });
-    return out;
-  }
-
-  function moduleDateBounds(mods, stages, editsMap) {
+  function moduleDateBounds(mods) {
     var min = null, max = null;
     mods.forEach(function (m) {
-      barsForModule(m, stages, editsMap).forEach(function (b) {
+      barsForModule(m, deal.stageColors).forEach(function (b) {
         if (!min || b.start < min) min = b.start;
         if (!max || b.end > max) max = b.end;
       });
     });
     return { min: min, max: max };
-  }
-
-  function monthLabels(cols) {
-    return cols.map(function (iso, i) {
-      var d = parseD(iso), prev = i ? parseD(cols[i - 1]) : null;
-      return (i === 0 || prev.getMonth() !== d.getMonth()) ? MONTHS[d.getMonth()] : '';
-    });
-  }
-
-  function todayIndex(cols, step) {
-    var sd = stepDaysOf(step), today = isoOf(new Date());
-    for (var i = 0; i < cols.length; i++) {
-      if (daysBetween(cols[i], today) >= 0 && daysBetween(today, addDaysIso(cols[i], sd)) > 0) return i;
-    }
-    return -1;
   }
 
   /* ── Режимы правки: карта правок ─────────────────────────────────────── */
@@ -467,32 +369,9 @@
   function checkedCount(checkedSet) { return checkedSet.size; }
 
   /* ── Валидация перед отправкой ───────────────────────────────────────── */
-
-  var DUR_KEYS = ['dayRun', 'dayEdit', 'dayWait', 'dayApprove'];
-
-  function validateEdits(dealData, editsMap) {
-    var errs = [];
-    dealData.modules.forEach(function (m) {
-      var ed = editsMap[m.id];
-      if (!ed || !Object.keys(ed).length) return;
-      var eff = Object.assign({}, m, ed);
-      if (eff.check && eff.create && daysBetween(eff.check, eff.create) < 0) {
-        errs.push({ moduleId: m.id, field: 'check', msg: 'Рассмотрение позже Разработки' });
-        errs.push({ moduleId: m.id, field: 'create', msg: 'Разработка раньше Рассмотрения' });
-      }
-      DUR_KEYS.forEach(function (k) {
-        var v = eff[k];
-        if (v === undefined || v === null || v === '') {
-          errs.push({ moduleId: m.id, field: k, msg: 'Длительность не задана' });
-        } else if (typeof v !== 'number' || !isFinite(v)) {
-          errs.push({ moduleId: m.id, field: k, msg: 'Не число' });
-        } else if (v < 0) {
-          errs.push({ moduleId: m.id, field: k, msg: 'Отрицательная длительность' });
-        }
-      });
-    });
-    return errs;
-  }
+  /* validateEdits — из GanttLogic (принимает массив модулей): после
+     seedZeroDurations пустые длительности уже 0, «Длительность не задана»
+     больше не ошибка. */
 
   function clearEdits(editsMap) {
     Object.keys(editsMap).forEach(function (id) { delete editsMap[id]; });
@@ -525,7 +404,7 @@
   }
 
   var dealId = getDealId();
-  var deal = { stages: [], modules: [] };
+  var deal = { stages: [], modules: [], stageColors: {} };
   var loadPanel = $('loadPanel'), loadMsg = $('loadMsg');
 
   /* Модуль ответа сервера → нормализованный объект (id-этап строкой, даты ISO,
@@ -554,6 +433,7 @@
       waitD: normDate(m.waitD),
       approveD: normDate(m.approveD),
       dayRun: normDur(m.dayRun),
+      dayCheck: normDur(m.dayCheck),
       dayEdit: normDur(m.dayEdit),
       dayWait: normDur(m.dayWait),
       dayApprove: normDur(m.dayApprove),
@@ -584,6 +464,11 @@
       });
       deal.modules = (res.modules || []).map(normalizeModule);
       clearEdits(edits);
+      // Палитра стадий для Ганта: код стадии (NEW/…/UC_*) → цвет из crm.status.list.
+      deal.stageColors = res.stageColors || {};
+      // Пустые длительности → 0 в модулях + авто-правки 0 на отправку.
+      // Строго ПОСЛЕ clearEdits — чтобы нули попали в чистый edits.
+      seedZeroDurations(deal.modules, edits);
       state.checked.clear();
       hScrolledByUser = false;
       $('dealTitle').textContent = res.dealTitle || ('Сделка #' + dealId);
@@ -609,6 +494,7 @@
 
   var EDIT_FIELDS = [
     { key: 'dayRun', type: 'number' },
+    { key: 'dayCheck', type: 'number' },
     { key: 'check', type: 'date' },
     { key: 'create', type: 'date' },
     { key: 'dayEdit', type: 'number' },
@@ -618,8 +504,9 @@
 
   function setGridCols(nCols) {
     var lead = state.mode === 'group' ? '30px ' : '';
+    // 9 колонок таблицы: Статус, ДЗ, ДР, Рассмотр., Разработка, ДК, ДО, ДС, Р.
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(170px, 210px) 46px 36px 84px 84px 84px 34px 34px 34px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + 'minmax(170px, 210px) 46px 34px 34px 84px 84px 34px 34px 34px 34px repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
   function editCell(m, f) {
@@ -642,12 +529,14 @@
   function isDoneStatus(m) { return STATUS_COMPLETED.indexOf(m.status) !== -1; }
 
   function barsFor(m, offsetIso, cols, dim, withFlag, icon) {
-    var bars = barsForModule(m, deal.stages, edits);
+    var bars = barsForModule(m, deal.stageColors);
     var html = bars.map(function (b) {
       var p = barColumns(offsetIso, state.step, cols.length, b.start, b.end);
       if (!p.visible) return '';
+      // Цвет полосы — по палитре стадий из Б24 (b.color — КОД стадии);
+      // классы accent/secondary/dimmed не трогаем — они дают затемнение.
       return '<div class="gantt-bar ' + b.kind + (dim ? ' dimmed' : '') + '" style="left:' + (p.start * COL_W) + 'px;width:' +
-        (p.width * COL_W - 2) + 'px" title="' + esc(b.title) + '"></div>';
+        (p.width * COL_W - 2) + 'px;background:' + esc(deal.stageColors[b.color] || '#ccc') + '" title="' + esc(b.title) + '"></div>';
     }).join('');
     var flag = '';
     if (withFlag && bars.length) {
@@ -688,12 +577,13 @@
 
   var HEAD_COLS = [
     { label: 'Статус', cls: '', key: 'status', title: 'Стадия модуля по воронке (цвета — из Б24)' },
-    { label: 'З', cls: 'num', key: 'dayRun', title: 'Запуск — рабочих дней от старта до начала Рассмотрения' },
+    { label: 'ДЗ', cls: 'num', key: 'dayRun', title: 'Дни на Запуск — календарных дней до начала Рассмотрения' },
+    { label: 'ДР', cls: 'num', key: 'dayCheck', title: 'Дни на Рассмотрение — календарных дней до даты Рассмотрения' },
     { label: 'Рассмотр.', cls: '', key: 'check', title: 'Дата начала Рассмотрения (стадия модуля)' },
     { label: 'Разработка', cls: '', key: 'create', title: 'Дата завершения Разработки — конец работ по модулю' },
-    { label: 'К', cls: 'num', key: 'dayEdit', title: 'Корректировка — рабочих дней после Разработки' },
-    { label: 'О', cls: 'num', key: 'dayWait', title: 'Ожидание — рабочих дней после Корректировки' },
-    { label: 'С', cls: 'num', key: 'dayApprove', title: 'Согласование — рабочих дней после Ожидания' },
+    { label: 'ДК', cls: 'num', key: 'dayEdit', title: 'Дни на Корректировку — календарных дней после Разработки' },
+    { label: 'ДО', cls: 'num', key: 'dayWait', title: 'Дни на Ожидание — календарных дней после Корректировки' },
+    { label: 'ДС', cls: 'num', key: 'dayApprove', title: 'Дни на Согласование — календарных дней после Ожидания' },
     { label: 'Р', cls: 'num', key: 'run', title: 'Длительность разработки — календарных дней от Рассмотрения до Разработки' }
   ];
   var NAME_TITLE = 'Название модуля: код объекта, номер, шифр раздела. Сортировка — клик по заголовку колонки.';
@@ -740,7 +630,7 @@
     if (allDone) {
       var maxEnd = null;
       deal.modules.forEach(function (m) {
-        barsForModule(m, deal.stages, edits).forEach(function (b) {
+        barsForModule(effModule(m, edits), deal.stageColors).forEach(function (b) {
           if (maxEnd === null || b.end > maxEnd) { maxEnd = b.end; flagId = m.id; }
         });
       });
@@ -770,9 +660,10 @@
         html += '<div class="row data stage" data-stage="' + esc(r.stage.id) + '" title="Свернуть/развернуть модули">' +
           chk +
           '<div class="name stage-name"><span class="stage-toggle">' + (r.open ? '▾' : '▸') + '</span> ' + esc(r.stage.title) + '</div>' +
+          /* 9 колонок: Статус, ДЗ, ДР, Рассмотр., Разработка (kp-note «по КП»), ДК, ДО, ДС, Р */
           '<div class="st-cell"></div>' +
           '<div class="num muted-note"></div><div></div><div></div>' +
-          '<div class="kp-note">по КП: ' + esc(df ? fmtDyy(parseD(df)) : '—') + '</div><div></div><div></div><div></div>' +
+          '<div class="kp-note">по КП: ' + esc(df ? fmtDyy(parseD(df)) : '—') + '</div><div></div><div></div><div></div><div></div>' +
           ganttCells(cols, offsetIso) + '</div>';
       } else {
         var m = effModule(r.module, edits);
@@ -809,7 +700,7 @@
   }
 
   function updateValidation(n) {
-    var errs = validateEdits(deal, edits);
+    var errs = validateEdits(deal.modules, edits);
     var badMods = new Set(errs.map(function (e) { return e.moduleId; }));
     var badCells = new Set(errs.map(function (e) { return e.moduleId + '|' + e.field; }));
     document.querySelectorAll('#chartBody .row.module').forEach(function (row) {
@@ -833,7 +724,7 @@
   }
 
   function updateGantt() {
-    var bounds = moduleDateBounds(deal.modules.map(function (m) { return effModule(m, edits); }), deal.stages, edits);
+    var bounds = moduleDateBounds(deal.modules.map(function (m) { return effModule(m, edits); }));
     var input = $('offsetInput').value;
     var offsetIso = input || defaultOffsetIso(bounds.min, state.step) || isoOf(new Date());
     if (!input) $('offsetInput').value = offsetIso;
@@ -859,7 +750,7 @@
   }
 
   function render() {
-    var bounds = moduleDateBounds(deal.modules.map(function (m) { return effModule(m, edits); }), deal.stages, edits);
+    var bounds = moduleDateBounds(deal.modules.map(function (m) { return effModule(m, edits); }));
     var input = $('offsetInput').value;
     var offsetIso = input || defaultOffsetIso(bounds.min, state.step) || isoOf(new Date());
     if (!input) $('offsetInput').value = offsetIso;
@@ -1033,12 +924,13 @@
   }
 
   /* Правки → UF-поля: check→UF_CRM_14_MOD_CHECK, create→…_CREATE,
-     dayRun→…_DAY2_RUN, dayEdit/dayWait/dayApprove→…_DAY2_*. Даты — ISO,
-     пустые — '' (очистка поля). */
+     dayRun→…_DAY2_RUN, dayCheck→…_DAY2_CHECK, dayEdit/dayWait/dayApprove→…_DAY2_*.
+     Даты — ISO, пустые — '' (очистка поля). */
   var FIELD_MAP = {
     check: 'UF_CRM_14_MOD_CHECK',
     create: 'UF_CRM_14_MOD_CREATE',
     dayRun: 'UF_CRM_14_MOD_DAY2_RUN',
+    dayCheck: 'UF_CRM_14_MOD_DAY2_CHECK',
     dayEdit: 'UF_CRM_14_MOD_DAY2_EDIT',
     dayWait: 'UF_CRM_14_MOD_DAY2_WAIT',
     dayApprove: 'UF_CRM_14_MOD_DAY2_APPROVE',
@@ -1046,7 +938,7 @@
 
   $('sendBtn').addEventListener('click', function () {
     var n = countPending(edits);
-    if (n < 1 || validateEdits(deal, edits).length) return;
+    if (n < 1 || validateEdits(deal.modules, edits).length) return;
     confirmAsk('Отправить изменения', 'Отправить ' + n + ' изменений в Б24?', function () {
       var updates = Object.keys(edits).map(function (id) {
         var fields = {};

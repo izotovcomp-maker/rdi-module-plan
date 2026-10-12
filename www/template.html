@@ -66,6 +66,7 @@
     <div class="group-entry" id="groupEntry" hidden>
       <span class="group-entry-title">Групповой ввод:</span>
       <label>З <input type="number" id="gw-dayRun"></label>
+      <label>ДР <input type="number" id="gw-dayCheck"></label>
       <label>Рассмотрение <input type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" class="cell-input date-input" id="gw-check"></label>
       <label>Разработка <input type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" class="cell-input date-input" id="gw-create"></label>
       <label>К <input type="number" id="gw-dayEdit"></label>
@@ -152,6 +153,8 @@
   <!-- Тост: автоскрытие 2.5 с -->
   <div id="toast" class="toast" hidden></div>
 
+  <!-- Чистая логика Ганта (без DOM) — до app.js: экспортирует window.GanttLogic -->
+  <script src="js/gantt-logic.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

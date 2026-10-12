@@ -6,7 +6,8 @@ declare(strict_types=1);
  *
  * GET  ?dealId=<ID> → { ok:true, dealId, stages:[{id,title,dstart,dfinish}],
  *                       modules:[{id,title,num,sname,status,statusColor,stageId,check,create,
- *                                 runD,editD,waitD,approveD,dayRun,dayEdit,dayWait,dayApprove}] }
+ *                                 runD,editD,waitD,approveD,dayRun,dayCheck,dayEdit,dayWait,dayApprove}],
+ *                       stageColors:{<суффикс STATUS_ID>: <цвет>} }
  * POST ?dealId=<ID>&action=save, JSON {updates:[{id, fields:{...}}]}
  *      → { ok:true, saved:N, skipped:[{id,reason}], errors:[{id,error}] }
  *
@@ -14,12 +15,14 @@ declare(strict_types=1);
  *           dstart/dfinish = UF_CRM_10_MST_DSTART/DFINISH.
  * modules — crm.item.list entityTypeId=1050, filter parentId1038=dealId;
  *           check/create = UF_CRM_14_MOD_CHECK/CREATE, dayRun..dayApprove =
- *           UF_CRM_14_MOD_DAY2_RUN/EDIT/WAIT/APPROVE, runD/editD/waitD/approveD =
+ *           UF_CRM_14_MOD_DAY2_RUN/CHECK/EDIT/WAIT/APPROVE, runD/editD/waitD/approveD =
  *           UF_CRM_14_MOD_RUN/EDIT/WAIT/APPROVE, stageId = parentId1042 (этап сделки).
  *           num/sname = UF_CRM_14_MOD_NUM/SNAME (fallback — разбор title «…_N-КР_01-…»).
  * status/statusColor — стадия модуля в его собственной воронке (stageId вида
  *           DT1050_20:NEW): crm.category.list (entityTypeId=1050, isDefault=Y) →
  *           crm.status.list (ENTITY_ID='C1050:<id>'), карта STATUS_ID → аббревиатура/цвет.
+ * stageColors — та же crm.status.list, ключ = суффикс STATUS_ID, значение = COLOR
+ *           ('' → '#ccc') — палитра полос Ганта на клиенте.
  *
  * Кворк портала ooordi (D-006): useOriginalUfNames=Y (его подставляет b24()) вместе
  * с select молча выкидывает системные поля из ответа, а N+select — UF-поля.
@@ -145,6 +148,7 @@ function mapModule(array $item, array $statusMap = []): array {
         'waitD'       => $item['UF_CRM_14_MOD_WAIT'] ?? '',
         'approveD'    => $item['UF_CRM_14_MOD_APPROVE'] ?? '',
         'dayRun'      => $item['UF_CRM_14_MOD_DAY2_RUN'] ?? '',
+        'dayCheck'    => $item['UF_CRM_14_MOD_DAY2_CHECK'] ?? '',
         'dayEdit'     => $item['UF_CRM_14_MOD_DAY2_EDIT'] ?? '',
         'dayWait'     => $item['UF_CRM_14_MOD_DAY2_WAIT'] ?? '',
         'dayApprove'  => $item['UF_CRM_14_MOD_DAY2_APPROVE'] ?? '',
@@ -258,26 +262,32 @@ function graph_handle($b24, int $dealId): array {
                            graphListAll($b24, GRAPH_ENTITY_MODULE, $dealId));
     $truncated = count($stages) >= GRAPH_MAX_PAGES * GRAPH_PAGE_SIZE
               || count($modules) >= GRAPH_MAX_PAGES * GRAPH_PAGE_SIZE;
+    // Палитра Ганта: суффикс STATUS_ID → цвет (клиент маппит коды полос на цвета)
+    $stageColors = [];
+    foreach ($statusMap as $sid => $v) $stageColors[graph_statusIdOf($sid)] = $v['color'];
     return [
-        'ok'         => true,
-        'dealId'     => $dealId,
-        'dealTitle'  => $dealTitle,
-        'stages'     => $stages,
-        'modules'    => $modules,
-        'truncated'  => $truncated, // cap страниц пагинации достигнут — данные могут быть неполными
-        'serverTime' => date('c'),
+        'ok'          => true,
+        'dealId'      => $dealId,
+        'dealTitle'   => $dealTitle,
+        'stages'      => $stages,
+        'modules'     => $modules,
+        'stageColors' => $stageColors,
+        'truncated'   => $truncated, // cap страниц пагинации достигнут — данные могут быть неполными
+        'serverTime'  => date('c'),
     ];
 }
 
 // ── Сохранение (action=save) — чистые функции (тест /tmp/kilo/test-b2.php) ──
 
 /**
- * Разрешённые поля записи: 2 даты (YYYY-MM-DD или '' — очистка) и 4 длительности
- * (целые ≥ 0).
+ * Разрешённые поля записи: 2 даты (YYYY-MM-DD или '' — очистка) и 5 длительностей
+ * (целые ≥ 0). 2 даты + 5 длительностей = ровно 7 полей ТЗ; остальные даты
+ * считает БП портала — на портал не пишем.
  */
 const GRAPH_SAVE_DATE_FIELDS = ['UF_CRM_14_MOD_CHECK', 'UF_CRM_14_MOD_CREATE'];
 const GRAPH_SAVE_DUR_FIELDS  = ['UF_CRM_14_MOD_DAY2_RUN', 'UF_CRM_14_MOD_DAY2_EDIT',
-                                'UF_CRM_14_MOD_DAY2_WAIT', 'UF_CRM_14_MOD_DAY2_APPROVE'];
+                                'UF_CRM_14_MOD_DAY2_WAIT', 'UF_CRM_14_MOD_DAY2_APPROVE',
+                                'UF_CRM_14_MOD_DAY2_CHECK'];
 
 /**
  * Тело POST: JSON {updates:[{id, fields:{...}}]} → ['updates' => [...]] или null.
