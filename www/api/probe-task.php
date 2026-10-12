@@ -22,61 +22,45 @@ declare(strict_types=1);
  * @return callable(callable): mixed  function ($call) — $call($method, $params) вернёт ответ Б24 как массив
  */
 return function (callable $call) {
-    // Съём реальной структуры смарт-процессов 1038 (Сделки), 1050 (Модули), 1042.
-    // Пробный dealId: подставь реальный id сделки из карточки, где открыт вкладка.
+    // Диагноз: crm.item.list (1050, parentId1038=12) — total 65, а graphListAll
+    // собирает 49. Снимаем сырые метаданные обеих страниц и тот же запрос через batch.
     $dealId = 12;
+    $base = ['entityTypeId' => 1050, 'filter' => ['parentId1038' => $dealId]];
 
-    $list1050 = $call('crm.item.list', [
-        'entityTypeId' => 1050,
-        'filter'       => ['parentId1038' => $dealId],
-        'start'        => 0,
-    ]);
-    $list1042 = $call('crm.item.list', [
-        'entityTypeId' => 1042,
-        'filter'       => ['parentId1038' => $dealId],
-        'start'        => 0,
-    ]);
-
-    // Ответ graph.php целиком (реальный пайплайн с mapStage/mapModule).
-    // GRAPH_SKIP_HTTP: без него require под веб-SAPI выполнял HTTP-блок graph.php.
-    define('GRAPH_SKIP_HTTP', true);
-    require_once APP_ROOT . '/api/graph.php';
-    $graph = graph_handle(b24(), $dealId);
-
-    // Сырые статусы воронки 1050: реальные STATUS_ID/NAME/COLOR всех категорий —
-    // для точной карты GRAPH_STATUS_ABBR (жёсткие коды не совпали — плашки из fallback).
-    $b24 = b24();
-    $cats = $b24->call('crm.category.list', ['entityTypeId' => 1050]);
-    $statusLists = [];
-    foreach ((array)(($cats['result'] ?? [])['categories'] ?? []) as $c) {
-        $cid = (int)($c['id'] ?? 0);
-        if ($cid <= 0) continue;
-        $st = $b24->call('crm.status.list', ['ENTITY_ID' => 'C1050:' . $cid]);
-        $rows = [];
-        foreach ((array)($st['result'] ?? []) as $r) {
-            if (!is_array($r)) continue;
-            $rows[] = ['STATUS_ID' => $r['STATUS_ID'] ?? '', 'NAME' => $r['NAME'] ?? '', 'COLOR' => $r['COLOR'] ?? ''];
-        }
-        $statusLists['C1050:' . $cid . ' (' . ($c['name'] ?? '') . ')'] = $rows;
-    }
-
-    $compactList = static function (array $res): array {
-        $items = (array)($res['result']['items'] ?? []);
-        $first = (array)($items[0] ?? []);
+    $meta = static function (array $r): array {
+        $items = (array)(($r['result'] ?? [])['items'] ?? []);
+        $ids = array_map(static fn($it): int => (int)($it['id'] ?? 0), $items);
         return [
-            'error'   => $res['error'] ?? null,
-            'total'   => $res['total'] ?? null,
-            'n_items' => count($items),
-            'first_keys' => array_slice(array_keys($first), 0, 20),
+            'total'   => $r['total'] ?? null,
+            'next'    => $r['next'] ?? null,
+            'n'       => count($items),
+            'firstId' => $ids[0] ?? null,
+            'lastId'  => $ids ? $ids[count($ids) - 1] : null,
+            'ids'     => $ids,
         ];
     };
 
+    // Страница 1 — как её видит graphListAll (start=0).
+    $p1 = $meta($call('crm.item.list', $base + ['start' => 0]));
+
+    // Страница 2 — прямым вызовом (без batch): возвращает ли портал 15 хвостов.
+    $p2 = $meta($call('crm.item.list', $base + ['start' => (int)($p1['next'] ?? 50)]));
+
+    // Тот же запрос через batch — проверка парсинга result.result.k1 в graphListAll.
+    $bt = $call('batch', ['halt' => 0, 'cmd' => [
+        'k1' => 'crm.item.list?' . http_build_query($base + ['start' => (int)($p1['next'] ?? 50)]),
+    ]]);
+    $batch = [
+        'top_keys'    => array_keys($bt),
+        'result_keys' => array_keys((array)($bt['result'] ?? [])),
+        'k1_items'    => count((array)((($bt['result'] ?? [])['result'] ?? [])['k1']['items'] ?? ($bt['result']['k1']['items'] ?? []))),
+        'result_error'=> ($bt['result']['result_error'] ?? $bt['result_error'] ?? null),
+    ];
+
     return [
-        'note'      => 'graph_handle по сделке 12 + сырые статусы воронки 1050 (все категории).',
-        'dealId'    => $dealId,
-        'graph'     => $graph,
-        'status_lists_1050' => $statusLists,
-        'list_1050' => $compactList($list1050),
-        'list_1042' => $compactList($list1042),
+        'note'  => 'Диагноз потери 16 модулей: сырые страницы crm.item.list (1050, parentId1038=12) + batch',
+        'page1' => ['total' => $p1['total'], 'next' => $p1['next'], 'n' => $p1['n'], 'firstId' => $p1['firstId'], 'lastId' => $p1['lastId']],
+        'page2' => ['start' => (int)($p1['next'] ?? 50), 'total' => $p2['total'], 'next' => $p2['next'], 'n' => $p2['n'], 'firstId' => $p2['firstId'], 'lastId' => $p2['lastId'], 'ids' => $p2['ids']],
+        'batch' => $batch,
     ];
 };
