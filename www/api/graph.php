@@ -7,7 +7,10 @@ declare(strict_types=1);
  * GET  ?dealId=<ID> → { ok:true, dealId, stages:[{id,title,dstart,dfinish}],
  *                       modules:[{id,title,num,sname,status,statusName,statusColor,stageId,check,create,
  *                                 runD,editD,waitD,approveD,dayRun,dayCheck,dayEdit,dayWait,dayApprove}],
- *                       stageColors:{<суффикс STATUS_ID>: <цвет>} }
+ *                       stageColors:{<суффикс STATUS_ID>: <цвет>},
+ *                       statusList:[{id: суффикс STATUS_ID, name: полное NAME,
+ *                       color: COLOR}, ...] — ВСЕ стадии воронки модулей
+ *                       в порядке crm.status.list (легенда PDF). }
  * POST ?dealId=<ID>&action=save, JSON {updates:[{id, fields:{...}}]}
  *      → { ok:true, saved:N, skipped:[{id,reason}], errors:[{id,error}] }
  *
@@ -128,6 +131,42 @@ function graph_statusIdOf(string $funnelStage): string {
     return $p === false ? $funnelStage : substr($funnelStage, $p + 1);
 }
 
+/**
+ * Полный список стадий воронки модулей в ПОРЯДКЕ воронки (легенда PDF
+ * должна показывать все стадии, не только присутствующие в данных сделки).
+ * Стабильная сортировка по SORT (crm.status.list отдаёт смешанный список,
+ * порядок не гарантирован контрактом); равные/отсутствующие SORT — в исходном порядке.
+ * Фильтрация — как у палитры stageColors: пустой STATUS_ID и чужие воронки
+ * (без префикса 'DT1050_<catId>:') не попадают; пустое имя пропускаем — в
+ * легенде нечего показывать. id — суффикс STATUS_ID (ключ палитры Ганта).
+ */
+function graph_statusList(array $rows, string $prefix): array {
+    $indexed = [];
+    foreach ($rows as $i => $r) {
+        if (!is_array($r)) continue;
+        $r['GRAPH_ORIG_IDX'] = $i;
+        $indexed[] = $r;
+    }
+    usort($indexed, static function (array $a, array $b): int {
+        $sa = isset($a['SORT']) ? (int)$a['SORT'] : PHP_INT_MAX;
+        $sb = isset($b['SORT']) ? (int)$b['SORT'] : PHP_INT_MAX;
+        if ($sa !== $sb) return $sa <=> $sb;
+        return $a['GRAPH_ORIG_IDX'] <=> $b['GRAPH_ORIG_IDX'];
+    });
+    $list = [];
+    foreach ($indexed as $r) {
+        if (!is_array($r)) continue;
+        $sid = (string)($r['STATUS_ID'] ?? '');
+        if ($sid === '' || ($prefix !== '' && strpos($sid, $prefix) !== 0)) continue;
+        $name  = trim((string)($r['NAME'] ?? ''));
+        if ($name === '') continue;
+        $color = (string)($r['COLOR'] ?? '');
+        $list[] = ['id' => graph_statusIdOf($sid), 'name' => $name,
+                   'color' => $color !== '' ? $color : '#ccc'];
+    }
+    return $list;
+}
+
 /** Модуль → полный ответ-объект. $statusMap — карта graph_statusAbbrMap(). */
 function mapModule(array $item, array $statusMap = []): array {
     // num/sname: UF — главный источник (реальные поля портала), fallback — разбор title.
@@ -229,7 +268,8 @@ function graphListAll($b24, int $entityTypeId, int $dealId): array {
 /**
  * Карта статусов воронки модулей: crm.category.list (entityTypeId=1050, берём
  * isDefault=Y, иначе первую) → crm.status.list (ENTITY_ID='C1050:<id>').
- * Возвращает ['map' => graph_statusAbbrMap(...), 'prefix' => 'DT1050_<catId>:']:
+ * Возвращает ['map' => graph_statusAbbrMap(...), 'prefix' => 'DT1050_<catId>:',
+ * 'list' => graph_statusList(...)]:
  * prefix — префикс полного STATUS_ID воронки модулей (crm.status.list на портале
  * отдаёт смешанный список всех воронок, stageColors фильтруется по префиксу).
  * Нет категории → ['map' => [], 'prefix' => '']. Ошибка REST → RuntimeException.
@@ -245,14 +285,17 @@ function graph_statusMap($b24): array {
         if (is_array($c) && (($c['isDefault'] ?? '') === 'Y' || ($c['isDefault'] ?? false) === true)) { $chosen = $c; break; }
     }
     if ($chosen === null && $cats !== []) $chosen = $cats[0];
-    if (!is_array($chosen) || empty($chosen['id'])) return ['map' => [], 'prefix' => ''];
-    $st = $b24->call('crm.status.list', ['ENTITY_ID' => 'C1050:' . (int)$chosen['id']]);
+    if (!is_array($chosen) || empty($chosen['id'])) return ['map' => [], 'prefix' => '', 'list' => []];
+    $st = $b24->call('crm.status.list', ['ENTITY_ID' => 'C1050:' . (int)$chosen['id'], 'order' => ['SORT' => 'ASC']]);
     if (!empty($st['error'])) {
         throw new RuntimeException('crm.status.list: ' . ($st['error_description'] ?? $st['error']));
     }
+    $rows   = (array)($st['result'] ?? []);
+    $prefix = 'DT' . GRAPH_ENTITY_MODULE . '_' . (int)$chosen['id'] . ':';
     return [
-        'map'    => graph_statusAbbrMap((array)($st['result'] ?? [])),
-        'prefix' => 'DT' . GRAPH_ENTITY_MODULE . '_' . (int)$chosen['id'] . ':',
+        'map'    => graph_statusAbbrMap($rows),
+        'prefix' => $prefix,
+        'list'   => graph_statusList($rows, $prefix),
     ];
 }
 
@@ -293,6 +336,7 @@ function graph_handle($b24, int $dealId): array {
         'stages'      => $stages,
         'modules'     => $modules,
         'stageColors' => $stageColors,
+        'statusList'  => $statusData['list'],
         'truncated'   => $truncated, // cap страниц пагинации достигнут — данные могут быть неполными
         'serverTime'  => date('c'),
     ];

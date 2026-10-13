@@ -222,9 +222,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   margin-top: 6mm; gap: 6px 18px;
 }
 .print-legend-item { display: inline-flex; align-items: center; gap: 5px; }
-.print-legend-swatch { width: 36px; height: 12px; display: inline-block; border: 1px solid var(--border); }
+.print-legend-swatch { width: 36px; height: 12px; display: inline-block; border: 1px solid var(--ink); }
 .print-legend-title { font-weight: bold; }
 @media print {
   .print-only { display: block; }
+  #chartInner, #chartInner *, .print-legend, .print-legend * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-legend { display: flex; }
 }

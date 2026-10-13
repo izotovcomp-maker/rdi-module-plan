@@ -404,7 +404,7 @@
   }
 
   var dealId = getDealId();
-  var deal = { stages: [], modules: [], stageColors: {} };
+  var deal = { stages: [], modules: [], stageColors: {}, statusList: [] };
   var loadPanel = $('loadPanel'), loadMsg = $('loadMsg');
 
   /* Модуль ответа сервера → нормализованный объект (id-этап строкой, даты ISO,
@@ -467,6 +467,8 @@
       clearEdits(edits);
       // Палитра стадий для Ганта: код стадии (NEW/…/UC_*) → цвет из crm.status.list.
       deal.stageColors = res.stageColors || {};
+      // Полный список стадий воронки модулей (порядок crm.status.list) — легенда PDF.
+      deal.statusList = res.statusList || [];
       // Пустые длительности → 0 в модулях + авто-правки 0 на отправку.
       // Строго ПОСЛЕ clearEdits — чтобы нули попали в чистый edits.
       seedZeroDurations(deal.modules, edits);
@@ -787,9 +789,12 @@
   function updatePrintLegend() {
     var seen = {};
     var items = [];
-    deal.modules.forEach(function (m) {
-      var text = m.statusName || m.status;
-      var bg = m.statusColor || '#ccc';
+    // Полный список стадий воронки (из crm.status.list) в порядке воронки;
+    // fallback — статусы, присутствующие в модулях сделки.
+    var src = deal.statusList && deal.statusList.length ? deal.statusList : deal.modules;
+    src.forEach(function (s) {
+      var text = s.name || s.statusName || s.status;
+      var bg = s.color || s.statusColor || '#ccc';
       if (!text || seen[text + '|' + bg]) return;
       seen[text + '|' + bg] = true;
       items.push('<span class="print-legend-item"><span class="print-legend-swatch" style="background:' + esc(bg) + '"></span>' + esc(text) + '</span>');

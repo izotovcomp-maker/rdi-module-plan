@@ -74,9 +74,22 @@ const STATUS_COLORS = {
   'Анну':   '#ff0000'
 };
 const STATUS_COMPLETED = ['Завр', 'Анну'];
+/* Полный список стадий воронки модулей в порядке воронки (аналог statusList
+   в ответе api/graph.php) — легенда PDF показывает ВСЕ стадии, не только
+   присутствующие в сделке. */
+const STATUS_LIST = [
+  { id: 'NEW',         name: 'Запуск',        color: '#000000' },
+  { id: 'PREPARATION', name: 'Рассмотрение',  color: '#88b9ff' },
+  { id: 'CLIENT',      name: 'Разработка',    color: '#10e5fc' },
+  { id: 'UC_AJTX21',   name: 'Корректировка', color: '#ace9fb' },
+  { id: 'UC_PM02XS',   name: 'Ожидание',      color: '#fff300' },
+  { id: 'UC_M71TWU',   name: 'Согласование',  color: '#00a74c' },
+  { id: 'SUCCESS',     name: 'Завершено',     color: '#00ff00' },
+  { id: 'FAIL',        name: 'Аннулировано',  color: '#ff0000' }
+];
 /* Цвет текста плашки: тёмный на светлых заливках, белый на тёмных. */
 const STATUS_DARK_BG = ['Зап'];
 
 /* Экспорт для браузера (index.html) и для node-проверок. */
-if (typeof window !== 'undefined') { window.MOCK_DATA = MOCK_DATA; window.STATUS_COLORS = STATUS_COLORS; window.STATUS_COMPLETED = STATUS_COMPLETED; window.STATUS_DARK_BG = STATUS_DARK_BG; }
-if (typeof module !== 'undefined' && module.exports) { module.exports = MOCK_DATA; }
+if (typeof window !== 'undefined') { window.MOCK_DATA = MOCK_DATA; window.STATUS_COLORS = STATUS_COLORS; window.STATUS_COMPLETED = STATUS_COMPLETED; window.STATUS_DARK_BG = STATUS_DARK_BG; window.STATUS_LIST = STATUS_LIST; }
+if (typeof module !== 'undefined') { module.exports = MOCK_DATA; module.exports.STATUS_LIST = STATUS_LIST; }

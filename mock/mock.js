@@ -337,6 +337,7 @@ if (typeof document !== 'undefined') (function () {
   /* Ширина колонки календаря фиксированная (px); масштаб = дней в колонке. */
   const COL_W = 36;
   const deal = MOCK_DATA.deals[0];
+  deal.statusList = STATUS_LIST;
   const state = {
     step: '1w', offset: null,        /* offset — ISO-строка «Смещение» */
     mode: 'single',                  /* 'single' | 'group' — режим правки (M5) */
@@ -641,12 +642,13 @@ if (typeof document !== 'undefined') (function () {
   function updatePrintLegend() {
     const seen = {};
     const items = [];
-    deal.modules.forEach(m => {
-      const text = m.statusName || m.status;
-      const bg = m.statusColor || STATUS_COLORS[m.status] || '#ccc';
+    const src = deal.statusList && deal.statusList.length ? deal.statusList : deal.modules;
+    src.forEach(s => {
+      const text = s.name || s.statusName || s.status;
+      const bg = s.color || s.statusColor || STATUS_COLORS[s.status] || '#ccc';
       if (!text || seen[text + '|' + bg]) return;
       seen[text + '|' + bg] = true;
-      items.push('<span class="print-legend-item"><span class="print-legend-swatch" style="background:' + bg + '"></span>' + esc(text) + '</span>');
+      items.push('<span class="print-legend-item"><span class="print-legend-swatch" style="background:' + esc(bg) + '"></span>' + esc(text) + '</span>');
     });
     $('printLegend').innerHTML = items.length
       ? '<span class="print-legend-title">Легенда:</span>' + items.join('')

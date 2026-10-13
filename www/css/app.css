@@ -85,7 +85,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .name, .h-year, .h-month, .h-title, .h-cell, .chk-cell, .st-cell, .run-cell,
   .cell-dayRun, .cell-dayCheck, .cell-check, .cell-create,
   .cell-dayEdit, .cell-dayWait, .cell-dayApprove { position: static; }
-  #chartInner, #chartInner * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #chartInner, #chartInner *, .print-legend, .print-legend * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .gantt-bar, .st-badge, .row.stage > div, .h-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
@@ -101,7 +101,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   margin-top: 6mm; gap: 6px 18px;
 }
 .print-legend-item { display: inline-flex; align-items: center; gap: 5px; }
-.print-legend-swatch { width: 36px; height: 12px; display: inline-block; border: 1px solid var(--border); }
+.print-legend-swatch { width: 36px; height: 12px; display: inline-block; border: 1px solid var(--ink); }
 .print-legend-title { font-weight: bold; }
 @media print {
   .print-only { display: block; }
