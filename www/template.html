@@ -22,13 +22,22 @@
       </div>
       <div class="toolbar-controls">
         <!-- Тумблер режима правки: строго один режим активен -->
+        <span class="toolbar-label">Режим</span>
         <div class="mode-toggle" title="Режим правки">
-          <button type="button" class="mode-btn active" data-mode="single">Единично</button>
-          <button type="button" class="mode-btn" data-mode="group">Группово</button>
+          <button type="button" class="mode-btn active" data-mode="read" title="Чтение">👁</button>
+          <button type="button" class="mode-btn" data-mode="single" title="Единично">1️⃣</button>
+          <button type="button" class="mode-btn" data-mode="group" title="Группа">🔟</button>
         </div>
-        <div class="changes-counter" id="changesCounter">Изменений: 0</div>
-        <button type="button" class="btn-secondary" id="sendBtn" disabled>Отправить изменения</button>
-        <button type="button" class="btn-secondary" id="cancelBtn" disabled>Отменить изменения</button>
+        <div class="changes-counter" id="changesCounter">0 ✍Изм:</div>
+        <button type="button" class="btn-secondary" id="sendBtn" disabled>🔄 Отправить</button>
+        <button type="button" class="btn-secondary" id="cancelBtn" disabled>❎ Отменить</button>
+        <span class="toolbar-label">Уровни</span>
+        <div class="collapse-toggle" id="collapseToggle" title="Сворачивание этапов">
+          <button type="button" class="collapse-btn" data-collapse="all" title="Свернуть все">📦</button>
+          <button type="button" class="collapse-btn" data-collapse="none" title="Развернуть все">📖</button>
+          <button type="button" class="collapse-btn active" data-collapse="free" title="Свободно">🔛</button>
+        </div>
+        <button type="button" class="btn-secondary" id="pdfBtn">📝 в pdf</button>
         <!-- Переключатель масштаба Ганта: шаг колонки календаря -->
         <div class="scale-toggle" role="group" aria-label="Масштаб Ганта">
           <button type="button" class="scale-btn" data-step="1d">1д</button>
@@ -61,29 +70,40 @@
       <span>Модули не заведены.</span>
     </div>
 
-    <!-- Окно группового ввода: видно только в режиме «Группово».
-         Пустые поля пропускаются — применяются только заполненные. -->
-    <div class="group-entry" id="groupEntry" hidden>
-      <span class="group-entry-title">Групповой ввод:</span>
-      <label>З <input type="number" id="gw-dayRun"></label>
-      <label>ДР <input type="number" id="gw-dayCheck"></label>
-      <label>Рассмотрение <input type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" class="cell-input date-input" id="gw-check"></label>
-      <label>Разработка <input type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг" class="cell-input date-input" id="gw-create"></label>
-      <label>К <input type="number" id="gw-dayEdit"></label>
-      <label>О <input type="number" id="gw-dayWait"></label>
-      <label>С <input type="number" id="gw-dayApprove"></label>
-      <button type="button" class="btn-primary" id="gwApply" disabled>Применить к отмеченным (0)</button>
-    </div>
+    <!-- Print-only: шапка PDF с названием сделки + легенда цветов стадий.
+         На экране display:none, видны только в @media print. -->
+    <div class="print-only print-head" id="printHead" hidden></div>
 
     <!-- Зона 2+3: единый скролл-контейнер, слева таблица, справа Гант.
          Одна вертикальная прокрутка на обе зоны, строки выровнены (общая сетка колонок). -->
     <div class="chart" id="chart" hidden>
       <div class="chart-inner" id="chartInner">
+        <!-- Панель группового ввода: строка сетки --grid-cols над шапкой,
+             поля стоят над своими колонками. Видно только в режиме «Группа».
+             Пустые поля пропускаются — применяются только заполненные. -->
+        <div class="group-entry row" id="groupEntry" hidden>
+          <div class="chk-cell"></div>
+          <div class="name"><span class="group-entry-title">Групповой ввод:</span></div>
+          <div class="st-cell"></div>
+          <div class="cell-dayRun"><label title="Дни на Запуск — календарных дней до начала Рассмотрения">ДЗ <input type="number" class="cell-input" id="gw-dayRun"></label></div>
+          <div class="cell-dayCheck"><label title="Дни на Рассмотрение — календарных дней до даты Рассмотрения">ДР <input type="number" class="cell-input" id="gw-dayCheck"></label></div>
+          <div class="cell-check"><label title="Дата начала Рассмотрения (стадия модуля)">Рассм <input type="text" inputmode="numeric" placeholder="дд.мм.гг" title="ДД.ММ.ГГ, ДД-ММ-ГГ, ДДММГГ, ДД.ММ — год подставится" class="cell-input date-input" id="gw-check"></label></div>
+          <div class="cell-create"><label title="Дата завершения Разработки — конец работ по модулю">Разр <input type="text" inputmode="numeric" placeholder="дд.мм.гг" title="ДД.ММ.ГГ, ДД-ММ-ГГ, ДДММГГ, ДД.ММ — год подставится" class="cell-input date-input" id="gw-create"></label></div>
+          <div class="cell-dayEdit"><label title="Дни на Корректировку — календарных дней после Разработки">ДК <input type="number" class="cell-input" id="gw-dayEdit"></label></div>
+          <div class="cell-dayWait"><label title="Дни на Ожидание — календарных дней после Корректировки">ДО <input type="number" class="cell-input" id="gw-dayWait"></label></div>
+          <div class="cell-dayApprove"><label title="Дни на Согласование — календарных дней после Ожидания">ДС <input type="number" class="cell-input" id="gw-dayApprove"></label></div>
+          <div class="run-cell"></div>
+          <div class="gw-actions"><button type="button" class="btn-primary gw-apply" id="gwApply" disabled>✔️ Применить к отмеченным (0)</button>
+          <button type="button" class="btn-secondary" id="clearSelBtn" disabled>❎ Очистить выбор</button></div>
+        </div>
         <!-- шапка: 3 строки (год / месяц / заголовки) и тело — рисует js/app.js -->
         <div id="chartHead"></div>
         <div id="chartBody"></div>
       </div>
     </div>
+
+    <!-- Print-only легенда: собирается из .st-badge после render, видна только в печати -->
+    <div class="print-only print-legend" id="printLegend"></div>
 
   </div>
 

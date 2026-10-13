@@ -25,17 +25,31 @@ body {
   gap: 16px; flex-wrap: wrap;
 }
 .toolbar-title h1 { font-size: 20px; margin: 0; }
-.toolbar-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toolbar-controls { display: flex; align-items: center; gap: 10px; row-gap: 14px; flex-wrap: wrap; }
 
-.mode-toggle, .scale-toggle { display: flex; border: 1.5px solid var(--ink); border-radius: 6px; overflow: hidden; }
-.mode-btn, .scale-btn {
+.mode-toggle, .scale-toggle, .collapse-toggle { display: flex; border: 1.5px solid var(--ink); border-radius: 6px; overflow: hidden; }
+.collapse-btn { padding: 0 10px; height: 28px; border: none; background: transparent; font: inherit; cursor: pointer; }
+.mode-btn, .scale-btn, .collapse-btn {
   font: inherit; font-family: var(--font-mono); font-size: 13px;
   padding: 5px 12px; border: none; background: #fff; cursor: pointer;
 }
 .mode-btn + .mode-btn, .scale-btn + .scale-btn { border-left: 1px solid var(--border); }
-.mode-btn.active, .scale-btn.active { background: var(--ink); color: #fff; }
+.collapse-btn + .collapse-btn { border-left: 1px solid var(--border); }
+.mode-btn.active, .scale-btn.active, .collapse-btn.active { background: var(--ink); color: #fff; }
 .mode-btn:disabled, .scale-btn:disabled { cursor: not-allowed; opacity: .55; }
 .mode-btn.active:disabled, .scale-btn.active:disabled { background: var(--ink); color: #fff; opacity: .8; }
+
+.toolbar-label { font-family: var(--font-mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+.toolbar .mode-btn, .toolbar .scale-btn, .toolbar .collapse-btn {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 8px; line-height: 26px;
+}
+.toolbar .btn-secondary, .toolbar .btn-primary {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 8px; line-height: 25px;
+}
 
 .changes-counter {
   font-family: var(--font-mono); font-size: 13px; font-weight: 600;
@@ -162,6 +176,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .group-entry-title { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .group-entry label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 2px; }
 .group-entry input { font-size: 13px; padding: 4px 8px; width: 110px; }
+.group-entry .btn-primary, .group-entry .btn-secondary {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 12px; line-height: 25px;
+}
 
 /* ── M7: отправка/отмена — валидация, панель ошибок, тост ────────── */
 /* Модуль с ошибками: все ячейки подсвечены красным */
@@ -190,3 +209,22 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   box-shadow: 0 4px 14px rgba(0,0,0,.25);
 }
 .toast[hidden] { display: none; }
+
+/* ── Print-only блоки: шапка PDF и легенда стадий ─────────────────────────── */
+.print-only { display: none; }
+.print-head {
+  font-family: var(--font-mono); font-size: 13px; font-weight: bold;
+  margin-bottom: 6mm;
+}
+.print-legend {
+  display: none; flex-wrap: wrap; align-items: center;
+  font-family: var(--font-mono); font-size: 11px;
+  margin-top: 6mm; gap: 6px 18px;
+}
+.print-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.print-legend-swatch { width: 36px; height: 12px; display: inline-block; border: 1px solid var(--border); }
+.print-legend-title { font-weight: bold; }
+@media print {
+  .print-only { display: block; }
+  .print-legend { display: flex; }
+}

@@ -10,13 +10,14 @@ var GanttLogic = (function () {
   var parseD = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
   var fmtD = function (d) { return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2); };
   var fmtDyy = function (d) { return fmtD(d) + '.' + String(d.getFullYear()).slice(-2); };
-  /* дд.мм.гг → ISO; null, если неполно или неверная дата. */
+  /* дд.мм[.гг] → ISO; разделитель точка/дефис/без; null, если неполно или неверная дата. */
   function parseDyy(s) {
-    var m = /^(\d{2})\.(\d{2})\.(\d{2})$/.exec((s || '').trim());
+    var m = /^(\d{2})(?:([.-])(\d{2})(?:\2(\d{2}))?|(\d{2})(\d{2})?)$/.exec((s || '').trim());
     if (!m) return null;
-    var iso = '20' + m[3] + '-' + m[2] + '-' + m[1];
+    var day = m[1], mon = m[3] || m[5], yy = m[4] || m[6] || String(new Date().getFullYear()).slice(-2);
+    var iso = '20' + yy + '-' + mon + '-' + day;
     var d = parseD(iso);
-    return (d.getDate() === +m[1] && d.getMonth() + 1 === +m[2]) ? iso : null;
+    return (d.getDate() === +day && d.getMonth() + 1 === +mon) ? iso : null;
   }
 
   var isoOf = function (d) {

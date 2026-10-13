@@ -5,7 +5,7 @@ declare(strict_types=1);
  * График модулей: загрузка данных по сделке (сделка = смарт-процесс 1038).
  *
  * GET  ?dealId=<ID> → { ok:true, dealId, stages:[{id,title,dstart,dfinish}],
- *                       modules:[{id,title,num,sname,status,statusColor,stageId,check,create,
+ *                       modules:[{id,title,num,sname,status,statusName,statusColor,stageId,check,create,
  *                                 runD,editD,waitD,approveD,dayRun,dayCheck,dayEdit,dayWait,dayApprove}],
  *                       stageColors:{<суффикс STATUS_ID>: <цвет>} }
  * POST ?dealId=<ID>&action=save, JSON {updates:[{id, fields:{...}}]}
@@ -103,7 +103,8 @@ function graph_numSname(string $title): array {
  * СМЕШАННЫЙ список всех воронок (голые NEW/CLIENT от лидов перекрывают нужные),
  * поэтому карта ключуется ПОЛНЫМ STATUS_ID ('DT1050_20:NEW' — как stageId модуля),
  * а abbr берётся по суффиксу из GRAPH_STATUS_ABBR (пользовательские — первые 4
- * символа NAME, color = COLOR или '#ccc').
+ * символа NAME, color = COLOR или '#ccc'). name — полный NAME без обрезки
+ * (легенда PDF показывает полное название стадии).
  */
 function graph_statusAbbrMap(array $rows): array {
     $map = [];
@@ -114,7 +115,8 @@ function graph_statusAbbrMap(array $rows): array {
         $suffix = graph_statusIdOf($sid);
         $abbr  = GRAPH_STATUS_ABBR[$suffix] ?? mb_substr(trim((string)($r['NAME'] ?? '')), 0, 4);
         $color = (string)($r['COLOR'] ?? '');
-        $map[$sid] = ['abbr' => $abbr, 'color' => $color !== '' ? $color : '#ccc'];
+        $map[$sid] = ['abbr' => $abbr, 'color' => $color !== '' ? $color : '#ccc',
+                      'name' => trim((string)($r['NAME'] ?? ''))];
     }
     return $map;
 }
@@ -143,6 +145,7 @@ function mapModule(array $item, array $statusMap = []): array {
         'num'         => $num,
         'sname'       => $sname,
         'status'      => $stat['abbr'] ?? '',
+        'statusName'  => isset($stat['name']) && $stat['name'] !== '' ? $stat['name'] : ($stat['abbr'] ?? ''),
         'statusColor' => $stat['color'] ?? '#ccc',
         'stageId'     => isset($item['parentId1042']) ? (int)$item['parentId1042'] : null,
         'check'       => $item['UF_CRM_14_MOD_CHECK'] ?? '',

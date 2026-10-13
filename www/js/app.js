@@ -426,6 +426,7 @@
       parentStageId: stageId,
       status: m.status || '',
       statusColor: m.statusColor || '#ccc',
+      statusName: m.statusName || m.status || '',
       check: normDate(m.check),
       create: normDate(m.create),
       runD: normDate(m.runD),
@@ -471,7 +472,11 @@
       seedZeroDurations(deal.modules, edits);
       state.checked.clear();
       hScrolledByUser = false;
+      $('offsetInput').value = '';
       $('dealTitle').textContent = res.dealTitle || ('Сделка #' + dealId);
+      var printHead = $('printHead');
+      printHead.textContent = $('dealTitle').textContent;
+      printHead.hidden = false;
       var empty = deal.modules.length === 0;
       $('emptyNote').hidden = !empty;
       $('chart').hidden = empty;
@@ -488,7 +493,7 @@
   var COL_W = 36;
   var state = {
     step: '1w', offset: null,
-    mode: 'single',
+    mode: 'read',
     checked: new Set()
   };
 
@@ -502,26 +507,34 @@
     { key: 'dayApprove', type: 'number' }
   ];
 
+  var STICKY_W = [210, 46, 34, 34, 68, 68, 34, 34, 34, 34];
+  var STICKY_KEYS = ['name', 'status', 'dayRun', 'dayCheck', 'check', 'create', 'dayEdit', 'dayWait', 'dayApprove', 'run'];
+
   function setGridCols(nCols) {
     var lead = state.mode === 'group' ? '30px ' : '';
-    // 9 колонок таблицы: Статус, ДЗ, ДР, Рассмотр., Разработка, ДК, ДО, ДС, Р.
+    var base = state.mode === 'group' ? 30 : 0;
+    var left = base;
+    STICKY_KEYS.forEach(function (k, i) {
+      if (i > 0) left += STICKY_W[i - 1];
+      document.documentElement.style.setProperty('--sticky-' + k, left + 'px');
+    });
     document.documentElement.style.setProperty('--grid-cols',
-      lead + 'minmax(170px, 210px) 46px 34px 34px 84px 84px 34px 34px 34px 34px repeat(' + nCols + ', ' + COL_W + 'px)');
+      lead + STICKY_W.map(function (x) { return x + 'px'; }).join(' ') + ' repeat(' + nCols + ', ' + COL_W + 'px)');
   }
 
   function editCell(m, f) {
     var v = effValue(m, edits, f.key);
     var val = (v === undefined || v === null) ? '' : v;
-    var ro = state.mode === 'group' ? ' readonly' : '';
+    var ro = state.mode !== 'single' ? ' readonly' : '';
     var edited = edits[m.id] && Object.prototype.hasOwnProperty.call(edits[m.id], f.key);
     if (f.type === 'date') {
       var shown = val ? fmtDyy(parseD(val)) : '';
-      return '<div class="cell-edit' + (edited ? ' is-edited' : '') + '">' +
-        '<input class="cell-input date-input" type="text" inputmode="numeric" maxlength="8" placeholder="дд.мм.гг"' +
+      return '<div class="cell-edit cell-' + f.key + (edited ? ' is-edited' : '') + '">' +
+        '<input class="cell-input date-input" type="text" inputmode="numeric" placeholder="дд.мм.гг" title="ДД.ММ.ГГ, ДД-ММ-ГГ, ДДММГГ, ДД.ММ — год подставится"' +
         ' data-module="' + esc(m.id) + '" data-field="' + f.key + '" data-type="date"' +
         ' value="' + esc(shown) + '"' + ro + '></div>';
     }
-    return '<div class="' + (f.type === 'number' ? 'num ' : '') + 'cell-edit' + (edited ? ' is-edited' : '') + '">' +
+    return '<div class="' + (f.type === 'number' ? 'num ' : '') + 'cell-edit cell-' + f.key + (edited ? ' is-edited' : '') + '">' +
       '<input class="cell-input" type="' + f.type + '" data-module="' + esc(m.id) + '" data-field="' + f.key + '"' +
       ' value="' + esc(val) + '"' + ro + '></div>';
   }
@@ -582,11 +595,11 @@
   }
 
   var HEAD_COLS = [
-    { label: 'Статус', cls: '', key: 'status', title: 'Стадия модуля по воронке (цвета — из Б24)' },
+    { label: 'Ст', cls: '', key: 'status', title: 'Стадия модуля по воронке' },
     { label: 'ДЗ', cls: 'num', key: 'dayRun', title: 'Дни на Запуск — календарных дней до начала Рассмотрения' },
     { label: 'ДР', cls: 'num', key: 'dayCheck', title: 'Дни на Рассмотрение — календарных дней до даты Рассмотрения' },
-    { label: 'Рассмотр.', cls: '', key: 'check', title: 'Дата начала Рассмотрения (стадия модуля)' },
-    { label: 'Разработка', cls: '', key: 'create', title: 'Дата завершения Разработки — конец работ по модулю' },
+    { label: 'Рассм', cls: '', key: 'check', title: 'Дата начала Рассмотрения (стадия модуля)' },
+    { label: 'Разр', cls: '', key: 'create', title: 'Дата завершения Разработки — конец работ по модулю' },
     { label: 'ДК', cls: 'num', key: 'dayEdit', title: 'Дни на Корректировку — календарных дней после Разработки' },
     { label: 'ДО', cls: 'num', key: 'dayWait', title: 'Дни на Ожидание — календарных дней после Корректировки' },
     { label: 'ДС', cls: 'num', key: 'dayApprove', title: 'Дни на Согласование — календарных дней после Ожидания' },
@@ -601,20 +614,20 @@
       '<div class="row head">' +
         chk +
         '<div class="h-cell h-year name"></div>' +
-        HEAD_COLS.map(function () { return '<div class="h-cell h-year"></div>'; }).join('') +
+        HEAD_COLS.map(function (c) { return '<div class="h-cell h-year col-' + c.key + '"></div>'; }).join('') +
         ganttHeadCells('h-year', cols) +
       '</div>' +
       '<div class="row head">' +
         chk +
         '<div class="h-cell h-month name"></div>' +
-        HEAD_COLS.map(function () { return '<div class="h-cell h-month"></div>'; }).join('') +
+        HEAD_COLS.map(function (c) { return '<div class="h-cell h-month col-' + c.key + '"></div>'; }).join('') +
         ganttHeadCells('h-month', cols) +
       '</div>' +
       '<div class="row head">' +
         chk +
         '<div class="h-cell h-title name" title="' + NAME_TITLE + '">Этап / модуль</div>' +
         HEAD_COLS.map(function (c) {
-          return '<div class="h-cell h-title ' + c.cls + ' sort-btn" data-sort="' + c.key + '" title="' + c.title + '. Сортировать">' +
+          return '<div class="h-cell h-title col-' + c.key + ' ' + c.cls + ' sort-btn" data-sort="' + c.key + '" title="' + c.title + '. Сортировать">' +
           c.label + ind(c.key) + '</div>';
         }).join('') +
         ganttHeadCells('h-title', cols) +
@@ -668,8 +681,8 @@
           '<div class="name stage-name"><span class="stage-toggle">' + (r.open ? '▾' : '▸') + '</span> ' + esc(r.stage.title) + '</div>' +
           /* 9 колонок: Статус, ДЗ, ДР, Рассмотр., Разработка (kp-note «по КП»), ДК, ДО, ДС, Р */
           '<div class="st-cell"></div>' +
-          '<div class="num muted-note"></div><div></div><div></div>' +
-          '<div class="kp-note">по КП: ' + esc(df ? fmtDyy(parseD(df)) : '—') + '</div><div></div><div></div><div></div><div></div>' +
+          '<div class="num muted-note cell-dayRun"></div><div class="cell-dayCheck"></div><div class="cell-check"></div>' +
+          '<div class="kp-note cell-create">' + esc(df ? fmtDyy(parseD(df)) : '—') + '</div><div class="cell-dayEdit"></div><div class="cell-dayWait"></div><div class="cell-dayApprove"></div><div class="run-cell"></div>' +
           ganttCells(cols, offsetIso) + '</div>';
       } else {
         var m = effModule(r.module, edits);
@@ -684,7 +697,7 @@
           '<div class="name" title="' + esc(m.title) + '">' + esc(m.num) + ' · ' + esc(m.sname) + '</div>' +
           statusBadge(m) +
           EDIT_FIELDS.map(function (f) { return editCell(m, f); }).join('') +
-          '<div class="num run-cell">' + esc(cellValue(m, 'run')) + '</div>' +
+          '<div class="num run-cell cell-run">' + esc(cellValue(m, 'run')) + '</div>' +
           ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, dim, withFlag, em.icon)) + '</div>';
       }
     });
@@ -694,13 +707,14 @@
 
   function updateGroupBar() {
     var n = checkedCount(state.checked);
-    $('gwApply').textContent = 'Применить к отмеченным (' + n + ')';
+    $('gwApply').textContent = '✔️ Применить к отмеченным (' + n + ')';
     $('gwApply').disabled = n < 1;
+    $('clearSelBtn').disabled = n < 1;
   }
 
   function updateChangesCounter() {
     var n = countPending(edits);
-    $('changesCounter').textContent = 'Изменений: ' + n;
+    $('changesCounter').textContent = n + ' ✍Изм:';
     updateOver99();
     updateValidation(n);
   }
@@ -767,6 +781,22 @@
     updateGroupBar();
     updateChangesCounter();
     ensureBarsVisible(bounds);
+    updatePrintLegend();
+  }
+
+  function updatePrintLegend() {
+    var seen = {};
+    var items = [];
+    deal.modules.forEach(function (m) {
+      var text = m.statusName || m.status;
+      var bg = m.statusColor || '#ccc';
+      if (!text || seen[text + '|' + bg]) return;
+      seen[text + '|' + bg] = true;
+      items.push('<span class="print-legend-item"><span class="print-legend-swatch" style="background:' + esc(bg) + '"></span>' + esc(text) + '</span>');
+    });
+    $('printLegend').innerHTML = items.length
+      ? '<span class="print-legend-title">Легенда:</span>' + items.join('')
+      : '';
   }
 
   var hScrolledByUser = false;
@@ -802,10 +832,25 @@
     render();
   });
 
+  document.querySelectorAll('.collapse-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!deal.stages.length) return;
+      var mode = btn.dataset.collapse;
+      if (mode === 'all') {
+        deal.stages.forEach(function (s) { collapsed.add(s.id); });
+      } else if (mode === 'none') {
+        collapsed.clear();
+      }
+      document.querySelectorAll('.collapse-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      if (mode !== 'free') render();
+    });
+  });
+
   document.querySelectorAll('.scale-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       state.step = btn.dataset.step;
       hScrolledByUser = false;
+      $('offsetInput').value = '';
       document.querySelectorAll('.scale-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
       render();
     });
@@ -815,6 +860,13 @@
 
   /* ── Режимы правки ───────────────────────────────────────────────────── */
 
+  var syncEntryH = function () {
+    var ge = $('groupEntry');
+    $('chartInner').style.setProperty('--ge-h', ge.hidden ? '0px' : ge.offsetHeight + 'px');
+  };
+  syncEntryH();
+  if (window.ResizeObserver) new ResizeObserver(syncEntryH).observe($('groupEntry'));
+
   document.querySelectorAll('.mode-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var mode = btn.dataset.mode;
@@ -822,7 +874,9 @@
       state.mode = mode;
       document.querySelectorAll('.mode-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
       $('groupEntry').hidden = mode !== 'group';
+      syncEntryH();
       $('chartInner').classList.toggle('group-mode', mode === 'group');
+      $('chartInner').classList.toggle('read-mode', mode === 'read');
       render();
     });
   });
@@ -889,6 +943,10 @@
     });
   }
 
+  $('clearSelBtn').addEventListener('click', function () {
+    state.checked.clear();
+    render();
+  });
   $('gwApply').addEventListener('click', function () {
     var win = {};
     EDIT_FIELDS.forEach(function (f) {
@@ -984,6 +1042,25 @@
   });
 
   $('reloadBtn').addEventListener('click', loadDeal);
+
+  var printCollapsed = null;
+  window.addEventListener('afterprint', function () {
+    if (!printCollapsed) return;
+    collapsed.clear();
+    printCollapsed.forEach(function (id) { collapsed.add(id); });
+    printCollapsed = null;
+    render();
+  });
+  $('pdfBtn').addEventListener('click', function () {
+    if (collapsed.size) {
+      printCollapsed = new Set(collapsed);
+      collapsed.clear();
+      render();
+    }
+    window.print();
+  });
+
+  $('chartInner').classList.add('read-mode');
 
   loadDeal();
 })();

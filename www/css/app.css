@@ -25,15 +25,17 @@ body {
   gap: 16px; flex-wrap: wrap;
 }
 .toolbar-title h1 { font-size: 20px; margin: 0; }
-.toolbar-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toolbar-controls { display: flex; align-items: center; gap: 10px; row-gap: 14px; flex-wrap: wrap; }
 
-.mode-toggle, .scale-toggle { display: flex; border: 1.5px solid var(--ink); border-radius: 6px; overflow: hidden; }
-.mode-btn, .scale-btn {
+.mode-toggle, .scale-toggle, .collapse-toggle { display: flex; border: 1.5px solid var(--ink); border-radius: 6px; overflow: hidden; }
+.collapse-btn { padding: 0 10px; height: 28px; border: none; background: transparent; font: inherit; cursor: pointer; }
+.mode-btn, .scale-btn, .collapse-btn {
   font: inherit; font-family: var(--font-mono); font-size: 13px;
   padding: 5px 12px; border: none; background: #fff; cursor: pointer;
 }
 .mode-btn + .mode-btn, .scale-btn + .scale-btn { border-left: 1px solid var(--border); }
-.mode-btn.active, .scale-btn.active { background: var(--ink); color: #fff; }
+.collapse-btn + .collapse-btn { border-left: 1px solid var(--border); }
+.mode-btn.active, .scale-btn.active, .collapse-btn.active { background: var(--ink); color: #fff; }
 .mode-btn:disabled, .scale-btn:disabled { cursor: not-allowed; opacity: .55; }
 .mode-btn.active:disabled, .scale-btn.active:disabled { background: var(--ink); color: #fff; opacity: .8; }
 
@@ -45,6 +47,66 @@ body {
 .offset-field { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 2px; }
 .offset-field input { font-size: 13px; padding: 4px 8px; }
 button:disabled { cursor: not-allowed; opacity: .55; }
+
+.toolbar-label { font-family: var(--font-mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+.toolbar .mode-btn, .toolbar .scale-btn, .toolbar .collapse-btn {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 8px; line-height: 26px;
+}
+.toolbar .btn-secondary, .toolbar .btn-primary {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 8px; line-height: 25px;
+}
+.toolbar .changes-counter {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  padding: 0 12px; line-height: 26px;
+}
+.toolbar .offset-field {
+  font-family: var(--font-mono); font-size: 13px;
+  height: 28px; justify-content: flex-end; overflow: visible;
+}
+.toolbar .offset-field input {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 8px; line-height: 26px;
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { overflow: visible; height: auto; }
+  #app { height: auto; overflow: visible; padding: 0; display: block; }
+  .toolbar, .error-panel, .load-panel, #emptyNote, .toast, .group-entry { display: none !important; }
+  input::placeholder { color: transparent; }
+  .chart { overflow: visible; height: auto; flex: none; }
+  #chartHead, .row.head, #chartHead .row.head { position: static !important; }
+  .name, .h-year, .h-month, .h-title, .h-cell, .chk-cell, .st-cell, .run-cell,
+  .cell-dayRun, .cell-dayCheck, .cell-check, .cell-create,
+  .cell-dayEdit, .cell-dayWait, .cell-dayApprove { position: static; }
+  #chartInner, #chartInner * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gantt-bar, .st-badge, .row.stage > div, .h-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ── Print-only блоки: шапка PDF и легенда стадий ─────────────────────────── */
+.print-only { display: none; }
+.print-head {
+  font-family: var(--font-mono); font-size: 13px; font-weight: bold;
+  margin-bottom: 6mm;
+}
+.print-legend {
+  display: none; flex-wrap: wrap; align-items: center;
+  font-family: var(--font-mono); font-size: 11px;
+  margin-top: 6mm; gap: 6px 18px;
+}
+.print-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.print-legend-swatch { width: 36px; height: 12px; display: inline-block; border: 1px solid var(--border); }
+.print-legend-title { font-weight: bold; }
+@media print {
+  .print-only { display: block; }
+  .print-legend { display: flex; }
+}
 
 /* ── Зона 2+3: единый скролл-контейнер ───────────────────────────── */
 .chart {
@@ -64,16 +126,54 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 /* ── Sticky: шапка (3 строки: год / месяц / заголовки) + заголовки таблицы ── */
 .h-cell { background: var(--paper-2); font-weight: 600; color: var(--ink); font-size: 12px; }
-.h-year  { position: sticky; top: 0;  z-index: 10; height: 18px !important; line-height: 18px !important; border-bottom: 1px solid var(--border) !important; }
-.h-month { position: sticky; top: 18px; z-index: 10; height: 20px !important; line-height: 20px !important; border-bottom: 1px solid var(--ink) !important; }
-.h-title { position: sticky; top: 38px; z-index: 10; height: 26px !important; line-height: 26px !important; border-bottom: 1px solid var(--ink) !important; }
+.h-year  { position: sticky; z-index: 10; height: 18px !important; line-height: 18px !important; border-bottom: 1px solid var(--border) !important; }
+.h-month { position: sticky; z-index: 10; height: 20px !important; line-height: 20px !important; border-bottom: 1px solid var(--ink) !important; }
+.h-title { position: sticky; z-index: 10; height: 26px !important; line-height: 26px !important; border-bottom: 1px solid var(--ink) !important; }
+/* Sticky top — на строках шапки. #chartHead — display:contents: как реальный
+   блок (96px) он зажимал бы sticky-строки своей высотой; без бокса строки —
+   прямые дети #chartInner на всю высоту контента и доходят до своих top.
+   --ge-h — высота панели группового ввода (ставит app.js), 0 когда панель скрыта. */
+#chartHead { display: contents; }
+.row.head { position: sticky; z-index: 10; }
+#chartHead .row.head:nth-child(1) { top: var(--ge-h, 0px); }
+#chartHead .row.head:nth-child(2) { top: calc(var(--ge-h, 0px) + 18px); }
+#chartHead .row.head:nth-child(3) { top: calc(var(--ge-h, 0px) + 38px); }
 /* Sticky колонка названий при горизонтальном скролле */
 .name {
-  position: sticky; left: 0; z-index: 5;
+  position: sticky; left: var(--sticky-name); z-index: 7;
   background: var(--card-bg); border-right: 1px solid var(--ink);
 }
 /* Угол (названия в шапке): sticky сразу в двух осях */
 .h-year.name, .h-month.name, .h-title.name { z-index: 20; }
+
+/* Sticky-каскад левого блока: статус и колонки данных правее названия */
+.st-cell,
+.cell-dayRun, .cell-dayCheck, .cell-check, .cell-create,
+.cell-dayEdit, .cell-dayWait, .cell-dayApprove, .run-cell {
+  position: sticky;
+  background: var(--card-bg);
+  z-index: 6;
+}
+.st-cell { left: var(--sticky-status); }
+.cell-dayRun { left: var(--sticky-dayRun); }
+.cell-dayCheck { left: var(--sticky-dayCheck); }
+.cell-check { left: var(--sticky-check); }
+.cell-create { left: var(--sticky-create); }
+.cell-dayEdit { left: var(--sticky-dayEdit); }
+.cell-dayWait { left: var(--sticky-dayWait); }
+.cell-dayApprove { left: var(--sticky-dayApprove); }
+.run-cell { left: var(--sticky-run); border-right: 1px solid var(--ink); font-size: 11px; }
+/* Шапка: sticky в двух осях (top от .h-year/.h-month/.h-title + left) */
+.h-cell.col-status { left: var(--sticky-status); }
+.h-cell.col-dayRun { left: var(--sticky-dayRun); }
+.h-cell.col-dayCheck { left: var(--sticky-dayCheck); }
+.h-cell.col-check { left: var(--sticky-check); }
+.h-cell.col-create { left: var(--sticky-create); }
+.h-cell.col-dayEdit { left: var(--sticky-dayEdit); }
+.h-cell.col-dayWait { left: var(--sticky-dayWait); }
+.h-cell.col-dayApprove { left: var(--sticky-dayApprove); }
+.h-cell.col-run { left: var(--sticky-run); border-right: 1px solid var(--ink); }
+.h-cell.name { left: var(--sticky-name); }
 
 /* Строки данных — единая высота (--row-h задаётся в .row, одинакова для этапов и модулей) */
 .row.data:hover > div { background: var(--row-hover); }
@@ -85,7 +185,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .row.stage > div { height: auto; min-height: var(--row-h); }
 .row.stage .name, .row.stage .kp-note { white-space: normal; line-height: 1.25; padding-top: 4px; }
 .row.stage .name { text-transform: none; }
-.row.stage .kp-note { font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.row.stage .kp-note { font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; padding: 4px 2px 0; }
 .stage-toggle { display: inline-block; width: 1em; text-align: center; }
 .muted-note { color: var(--muted); }
 
@@ -104,7 +204,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* Гант: ячейки календаря + полосы */
 .gantt-track { position: relative; padding: 0 !important; }
 .gantt-cell { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
-.h-month.gantt-track, .h-title.gantt-track { padding: 0 10px !important; position: sticky; } /* sticky вместо relative: иначе top:26px от .h-title сдвигает трек вниз */
+.h-month.gantt-track, .h-title.gantt-track { padding: 0 10px !important; position: sticky; z-index: 1; } /* sticky вместо relative: иначе top:26px от .h-title сдвигает трек вниз; z ниже ячеек шапки — при горизонтальном скролле трек не рисуется поверх sticky-заголовков */
+.h-year.gantt-track, .h-month.gantt-track, .h-title.gantt-track { background: var(--paper-2); } /* треки шапки не в классе .h-cell — без фона полосы тела просвечивают сквозь них при вертикальном скролле */
 .gantt-bar {
   position: absolute; top: 50%; transform: translateY(-50%);
   height: 12px; border-radius: 3px; border: 1px solid var(--ink);
@@ -134,6 +235,17 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .cell-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .cell-input:focus { outline: none; border-color: var(--accent); }
 .cell-input[readonly] { background: var(--paper-2); color: var(--muted); cursor: not-allowed; }
+
+/* Текстовые (date) инпуты: style.css input[type=text] сильнее .cell-input —
+   усиливаем точечно, не трогая глобальный input[type=text] */
+.cell-edit .cell-input[type=text], .group-entry .cell-input[type=text] {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 2px; border: 1px solid var(--border); border-radius: 3px; background: #fff;
+  box-sizing: border-box; width: 100%; min-width: 0; height: 24px;
+}
+.cell-edit .cell-input[type=text]:focus { border-color: var(--accent); }
+
+.read-mode .cell-input, .read-mode .cell-input[type=text] { border-color: transparent; background: transparent; cursor: text; }
 /* M6: ячейка с несохранённой правкой подсвечена жёлтым */
 .cell-edit.is-edited, .cell-edit.is-edited .cell-input { background: var(--warn-bg); }
 /* Длительность больше 99 дней — красная рамка (не блокирует, просто заметно) */
@@ -148,20 +260,36 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 .row.stage .chk-cell, .row.stage .chk-cell * { background: var(--paper-3); }
 .h-cell.chk-cell { z-index: 21; }
-/* В групповом режиме sticky-названия сдвигаются на ширину колонки чекбоксов */
-#chartInner.group-mode .name { left: 34px; }
+/* В групповом режиме сдвиг даёт base=30 в setGridCols (--sticky-*), отдельного правила не нужно */
 #chartInner.group-mode .row.stage .name { background: var(--paper-3); }
 
-/* Окно группового ввода над графиком (видно только в «Группово») */
-.group-entry {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  background: var(--paper-2); border: 1.5px solid var(--ink); border-radius: 6px;
-  padding: 8px 12px; margin-top: 12px;
-}
+/* Панель группового ввода: строка сетки --grid-cols внутри #chartInner,
+   над шапкой; поля стоят над своими колонками (sticky left от cell-*).
+   Sticky top:0 — висит над шапкой при вертикальном скролле (высоту шапка
+   получает через --ge-h, её ставит app.js). */
+.group-entry { position: sticky; top: 0; z-index: 25; background: var(--paper-2); border-bottom: 2px solid var(--ink); }
 .group-entry[hidden] { display: none; }
+.group-entry > div {
+  height: auto; min-height: var(--row-h); padding: 3px 2px;
+  border-bottom: 0; line-height: 1.2; white-space: normal;
+  display: flex; align-items: flex-end; overflow: visible;
+}
+.group-entry .name { padding: 3px 10px; }
+.group-entry .chk-cell, .group-entry .st-cell, .group-entry .run-cell { padding: 0 4px !important; }
+.group-entry .name { background: var(--paper-2); align-items: center; }
+.group-entry .cell-dayRun, .group-entry .cell-dayCheck, .group-entry .cell-check,
+.group-entry .cell-create, .group-entry .cell-dayEdit, .group-entry .cell-dayWait,
+.group-entry .cell-dayApprove { background: var(--paper-2); }
 .group-entry-title { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-.group-entry label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 2px; }
-.group-entry input { font-size: 13px; padding: 4px 8px; width: 110px; }
+.group-entry label { display: flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 1px; width: 100%; }
+.group-entry input { font-size: 12px; padding: 1px 2px; width: 100%; min-width: 0; }
+.group-entry .gw-actions { grid-column: 12 / -1; display: flex; align-items: center; gap: 6px; margin: 0 10px; }
+.group-entry .gw-apply { align-self: center; }
+.group-entry .btn-primary, .group-entry .btn-secondary {
+  height: 28px; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 13px;
+  padding: 0 12px; line-height: 25px;
+}
 
 /* ── M7: отправка/отмена — валидация, панель ошибок, тост ────────── */
 /* Модуль с ошибками: все ячейки подсвечены красным */

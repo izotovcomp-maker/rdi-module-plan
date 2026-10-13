@@ -366,7 +366,7 @@ if (typeof document !== 'undefined') (function () {
   function editCell(m, f) {
     const v = effValue(m, edits, f.key);
     const val = (v === undefined || v === null) ? '' : v;
-    const ro = state.mode === 'group' ? ' readonly' : '';
+    const ro = state.mode !== 'single' ? ' readonly' : '';
     /* M6: ячейка с непустой правкой подсвечена жёлтым */
     const edited = edits[m.id] && Object.prototype.hasOwnProperty.call(edits[m.id], f.key);
     if (f.type === 'date') {
@@ -561,7 +561,7 @@ if (typeof document !== 'undefined') (function () {
      Здесь же — валидация (M7): она должна перепроверяться на каждое изменение. */
   function updateChangesCounter() {
     const n = countPending(edits);
-    $('changesCounter').textContent = 'Изменений: ' + n;
+    $('changesCounter').textContent = n + ' ✍Изм:';
     updateOver99();
     updateValidation(n);
   }
@@ -635,6 +635,22 @@ if (typeof document !== 'undefined') (function () {
     updateGroupBar();
     updateChangesCounter();
     ensureBarsVisible(bounds);
+    updatePrintLegend();
+  }
+
+  function updatePrintLegend() {
+    const seen = {};
+    const items = [];
+    deal.modules.forEach(m => {
+      const text = m.statusName || m.status;
+      const bg = m.statusColor || STATUS_COLORS[m.status] || '#ccc';
+      if (!text || seen[text + '|' + bg]) return;
+      seen[text + '|' + bg] = true;
+      items.push('<span class="print-legend-item"><span class="print-legend-swatch" style="background:' + bg + '"></span>' + esc(text) + '</span>');
+    });
+    $('printLegend').innerHTML = items.length
+      ? '<span class="print-legend-title">Легенда:</span>' + items.join('')
+      : '';
   }
 
   /* Авто-прокрутка календаря к полосам (только при полном рендере, не при наборе):
@@ -674,6 +690,21 @@ if (typeof document !== 'undefined') (function () {
     const id = row.dataset.stage;
     if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
     render();
+  });
+
+  /* Кнопки «Уровни»: свернуть все, развернуть все, свободный режим. */
+  document.querySelectorAll('.collapse-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!deal.stages.length) return;
+      const mode = btn.dataset.collapse;
+      if (mode === 'all') {
+        deal.stages.forEach(s => collapsed.add(s.id));
+      } else if (mode === 'none') {
+        collapsed.clear();
+      }
+      document.querySelectorAll('.collapse-btn').forEach(b => b.classList.toggle('active', b === btn));
+      if (mode !== 'free') render();
+    });
   });
 
   /* Переключатель масштаба (M4): меняет шаг колонок, рендер без перезагрузки данных. */
@@ -845,6 +876,10 @@ if (typeof document !== 'undefined') (function () {
     });
   });
 
+  $('dealTitle').textContent = deal.title || ('Сделка #' + deal.id);
+  const printHead = $('printHead');
+  printHead.textContent = $('dealTitle').textContent;
+  printHead.hidden = false;
   render();
 
   /* Интерактив каркаса: только «Сбросить макет» и окно «Дебаг». Правки — M5–M7. */

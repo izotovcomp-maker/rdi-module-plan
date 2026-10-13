@@ -15,16 +15,25 @@
     <div class="toolbar-title">
       <h1>График модулей</h1>
       <div class="muted">Макет: таблица + Гант, режимы правки, отправка изменений (данные вымышлены)</div>
+      <div class="muted" id="dealTitle"></div>
     </div>
     <div class="toolbar-controls">
       <!-- Тумблер режима правки (M5): строго один режим активен -->
+      <span class="toolbar-label">Режим</span>
       <div class="mode-toggle" title="Режим правки">
-        <button type="button" class="mode-btn active" data-mode="single">Единично</button>
-        <button type="button" class="mode-btn" data-mode="group">Группово</button>
+        <button type="button" class="mode-btn active" data-mode="read" title="Чтение">👁</button>
+        <button type="button" class="mode-btn" data-mode="single" title="Единично">1️⃣</button>
+        <button type="button" class="mode-btn" data-mode="group" title="Группа">🔟</button>
       </div>
-      <div class="changes-counter" id="changesCounter">Изменений: 0</div>
-      <button type="button" class="btn-secondary" id="sendBtn" disabled title="Включится в M7">Отправить изменения</button>
-      <button type="button" class="btn-secondary" id="cancelBtn" disabled title="Включится в M7">Отменить изменения</button>
+      <div class="changes-counter" id="changesCounter">0 ✍Изм:</div>
+      <button type="button" class="btn-secondary" id="sendBtn" disabled>🔄 Отправить</button>
+      <button type="button" class="btn-secondary" id="cancelBtn" disabled>❎ Отменить</button>
+      <span class="toolbar-label">Уровни</span>
+      <div class="collapse-toggle" id="collapseToggle" title="Сворачивание этапов">
+        <button type="button" class="collapse-btn" data-collapse="all" title="Свернуть все">📦</button>
+        <button type="button" class="collapse-btn" data-collapse="none" title="Развернуть все">📖</button>
+        <button type="button" class="collapse-btn active" data-collapse="free" title="Свободно">🔛</button>
+      </div>
       <!-- Переключатель масштаба Ганта (M4): шаг колонки календаря -->
       <div class="scale-toggle" role="group" aria-label="Масштаб Ганта">
         <button type="button" class="scale-btn" data-step="1d">1д</button>
@@ -50,6 +59,9 @@
     прилипают; вправо — колонка названий остаётся.
     <button class="btn" id="resetBtn" style="margin-left:8px">Сбросить макет</button></div>
 
+  <!-- Print-only: шапка PDF с названием сделки. На экране display:none, видна в @media print. -->
+  <div class="print-only print-head" id="printHead" hidden></div>
+
   <!-- Окно группового ввода (M5): видно только в режиме «Группово».
        Пустые поля пропускаются — применяются только заполненные. -->
   <div class="group-entry" id="groupEntry" hidden>
@@ -72,6 +84,9 @@
       <div id="chartBody"></div>
     </div>
   </div>
+
+  <!-- Print-only легенда: собирается из .st-badge после render, видна только в печати -->
+  <div class="print-only print-legend" id="printLegend"></div>
 
 </div>
 
