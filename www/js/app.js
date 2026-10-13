@@ -498,6 +498,10 @@
     mode: 'read',
     checked: new Set()
   };
+  try {
+    var savedStep = sessionStorage.getItem('gspScale:' + dealId);
+    if (savedStep && STEP_MAP[savedStep]) state.step = savedStep;
+  } catch (e) {}
 
   var EDIT_FIELDS = [
     { key: 'dayRun', type: 'number' },
@@ -854,12 +858,17 @@
   document.querySelectorAll('.scale-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       state.step = btn.dataset.step;
+      try { sessionStorage.setItem('gspScale:' + dealId, state.step); } catch (e) {}
       hScrolledByUser = false;
       $('offsetInput').value = '';
       document.querySelectorAll('.scale-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
       render();
     });
   });
+  var restoredBtn = document.querySelector('.scale-btn[data-step="' + state.step + '"]');
+  if (restoredBtn) {
+    document.querySelectorAll('.scale-btn').forEach(function (b) { b.classList.toggle('active', b === restoredBtn); });
+  }
 
   $('offsetInput').addEventListener('change', function () { hScrolledByUser = false; render(); });
 
