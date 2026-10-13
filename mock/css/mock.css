@@ -228,4 +228,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .print-only { display: block; }
   #chartInner, #chartInner *, .print-legend, .print-legend * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-legend { display: flex; }
+  .row { break-inside: avoid; }
+}
+
+#printPages { display: none; }
+@media print {
+  body.print-paginate #chartInner { display: none !important; }
+  body.print-paginate .print-legend { display: none !important; }
+  body.print-paginate #printPages { display: block; }
+  #printPages { width: max-content; }
+  .print-page { width: max-content; break-after: page; }
+  .print-page:last-child { break-after: auto; }
 }

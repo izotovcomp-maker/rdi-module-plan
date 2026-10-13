@@ -1059,19 +1059,77 @@
 
   var printCollapsed = null;
   window.addEventListener('afterprint', function () {
+    var st = document.getElementById('printPageStyle');
+    if (st) st.parentNode.removeChild(st);
+    $('printPages').innerHTML = '';
+    document.body.classList.remove('print-paginate');
     if (!printCollapsed) return;
     collapsed.clear();
     printCollapsed.forEach(function (id) { collapsed.add(id); });
     printCollapsed = null;
     render();
   });
-  $('pdfBtn').addEventListener('click', function () {
+
+  function headHeightPx() {
+    var rows = $('chartHead').querySelectorAll('.row.head');
+    var h = 0;
+    rows.forEach(function (r) { h += r.offsetHeight; });
+    return h;
+  }
+
+  function applyPrintPageStyle(fmt) {
+    var st = document.getElementById('printPageStyle');
+    if (!st) {
+      st = document.createElement('style');
+      st.id = 'printPageStyle';
+      document.head.appendChild(st);
+    }
+    st.textContent = '@page { size: ' + fmt + ' landscape; margin: 10mm }';
+  }
+
+  function buildPrintPages(rows, pages) {
+    var box = $('printPages');
+    var legend = $('printLegend');
+    document.body.classList.add('print-paginate');
+    pages.forEach(function (idxs, p) {
+      var pg = document.createElement('div');
+      pg.className = 'print-page';
+      pg.appendChild($('chartHead').cloneNode(true));
+      idxs.forEach(function (i) { pg.appendChild(rows[i].cloneNode(true)); });
+      if (p === pages.length - 1) pg.appendChild(legend.cloneNode(true));
+      box.appendChild(pg);
+    });
+  }
+
+  function runPrint(fmt) {
     if (collapsed.size) {
       printCollapsed = new Set(collapsed);
       collapsed.clear();
       render();
     }
+    applyPrintPageStyle(fmt);
+    var hMm = GanttLogic.pageHeightMm(fmt);
+    if (hMm) {
+      var bodyH = GanttLogic.mmToPx(hMm) - 2;
+      var rows = Array.prototype.slice.call($('chartBody').querySelectorAll('.row'));
+      var pages = GanttLogic.paginateRows(rows.map(function (r) { return r.offsetHeight + 1; }), bodyH - headHeightPx());
+      if (pages) buildPrintPages(rows, pages);
+    }
     window.print();
+  }
+
+  $('print-format-cancel').addEventListener('click', function () { $('print-format-overlay').hidden = true; });
+  $('print-format-overlay').addEventListener('click', function (e) {
+    if (e.target === $('print-format-overlay')) $('print-format-overlay').hidden = true;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.print-format-btn'), function (btn) {
+    btn.addEventListener('click', function () {
+      $('print-format-overlay').hidden = true;
+      runPrint(btn.getAttribute('data-format'));
+    });
+  });
+  $('pdfBtn').addEventListener('click', function () {
+    $('print-format-overlay').hidden = false;
   });
 
   $('chartInner').classList.add('read-mode');

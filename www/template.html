@@ -105,6 +105,8 @@
     <!-- Print-only легенда: собирается из .st-badge после render, видна только в печати -->
     <div class="print-only print-legend" id="printLegend"></div>
 
+    <div id="printPages"></div>
+
   </div>
 
   <div id="access-modal-overlay" class="modal-overlay" hidden>
@@ -166,6 +168,19 @@
       <div class="modal-actions">
         <button type="button" id="confirm-no" class="btn-secondary">Отмена</button>
         <button type="button" id="confirm-yes" class="btn-primary">Да</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="print-format-overlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="print-format-title">
+      <h2 id="print-format-title">Формат листа</h2>
+      <p class="muted">Формат листа:</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary print-format-btn" data-format="A4">А4</button>
+        <button type="button" class="btn-secondary print-format-btn" data-format="A3">А3</button>
+        <button type="button" class="btn-secondary print-format-btn" data-format="A2">А2</button>
+        <button type="button" id="print-format-cancel" class="btn-secondary">Отмена</button>
       </div>
     </div>
   </div>

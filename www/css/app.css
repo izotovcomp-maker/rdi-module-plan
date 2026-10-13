@@ -87,6 +87,18 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .cell-dayEdit, .cell-dayWait, .cell-dayApprove { position: static; }
   #chartInner, #chartInner *, .print-legend, .print-legend * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .gantt-bar, .st-badge, .row.stage > div, .h-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .row { break-inside: avoid; }
+}
+
+/* ── Печатная пагинация (F22): #printPages только в печати при body.print-paginate ── */
+#printPages { display: none; }
+@media print {
+  body.print-paginate #chartInner { display: none !important; }
+  body.print-paginate .print-legend { display: none !important; }
+  body.print-paginate #printPages { display: block; }
+  #printPages { width: max-content; }
+  .print-page { width: max-content; break-after: page; }
+  .print-page:last-child { break-after: auto; }
 }
 
 /* ── Print-only блоки: шапка PDF и легенда стадий ─────────────────────────── */

@@ -203,6 +203,27 @@ var GanttLogic = (function () {
     return errs;
   }
 
+  var PRINT_FORMATS = ['A4', 'A3', 'A2'];
+  var PAGE_H_MM = { A4: 190, A3: 277, A2: 400 };
+
+  function mmToPx(mm) { return mm * 96 / 25.4; }
+
+  function pageHeightMm(fmt) { return PAGE_H_MM[fmt] || null; }
+
+  function paginateRows(heights, bodyH) {
+    var total = 0;
+    for (var t = 0; t < heights.length; t++) total += heights[t];
+    if (!heights.length || total <= bodyH) return null;
+    var pages = [], cur = [], acc = 0;
+    for (var i = 0; i < heights.length; i++) {
+      if (cur.length && acc + heights[i] > bodyH) { pages.push(cur); cur = []; acc = 0; }
+      cur.push(i);
+      acc += heights[i];
+    }
+    if (cur.length) pages.push(cur);
+    return pages;
+  }
+
   return { DAY_MS: DAY_MS, MONTHS: MONTHS, STATUS_ORDER: STATUS_ORDER, STATUS_COMPLETED: STATUS_COMPLETED,
            STATUS_DARK_BG: STATUS_DARK_BG, DUR_KEYS: DUR_KEYS,
            parseD: parseD, fmtD: fmtD, fmtDyy: fmtDyy, parseDyy: parseDyy, isoOf: isoOf,
@@ -210,7 +231,8 @@ var GanttLogic = (function () {
            yearLabels: yearLabels, monthLabels: monthLabels, STEP_MAP: STEP_MAP, stepDaysOf: stepDaysOf,
            buildCols: buildCols, barColumns: barColumns, defaultOffsetIso: defaultOffsetIso,
            todayIndex: todayIndex, barsForModule: barsForModule, layoutBars: layoutBars,
-           seedZeroDurations: seedZeroDurations, validateEdits: validateEdits };
+           seedZeroDurations: seedZeroDurations, validateEdits: validateEdits,
+           PRINT_FORMATS: PRINT_FORMATS, mmToPx: mmToPx, pageHeightMm: pageHeightMm, paginateRows: paginateRows };
 })();
 if (typeof window !== 'undefined') window.GanttLogic = GanttLogic;
 if (typeof module !== 'undefined') module.exports = GanttLogic;
