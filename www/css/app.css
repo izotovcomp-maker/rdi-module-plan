@@ -185,8 +185,13 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .h-cell.col-dayWait { left: var(--sticky-dayWait); }
 .h-cell.col-dayApprove { left: var(--sticky-dayApprove); }
 .h-cell.col-run { left: var(--sticky-run); }
-.cell-delay { left: var(--sticky-delay); border-right: 1px solid var(--ink); font-size: 11px; }
+.cell-delay { left: var(--sticky-delay); border-right: 1px solid var(--ink); font-size: 11px; display: flex; align-items: center; padding: 0 2px !important; }
 .h-cell.col-delay { left: var(--sticky-delay); border-right: 1px solid var(--ink); }
+.delay-badge {
+  display: inline-block; width: 100%; text-align: center;
+  font-size: 10px; font-weight: 700; line-height: 18px;
+  color: #fff; background: #6b1a1a; border-radius: 3px; border: 1px solid rgba(0,0,0,.25);
+}
 .h-cell.name { left: var(--sticky-name); }
 
 /* Строки данных — единая высота (--row-h задаётся в .row, одинакова для этапов и модулей) */

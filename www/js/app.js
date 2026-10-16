@@ -258,7 +258,7 @@
     if (key === 'run') return runDays(m) === '' ? '—' : runDays(m);
     if (key === 'delay') {
       var dd = delayDays(m, isoOf(new Date()));
-      return dd === null ? '—' : String(dd);
+      return dd === null ? '' : String(dd);
     }
     return (m.check && m.create) ? String(m[key]) : '—';
   }
@@ -715,7 +715,7 @@
           statusBadge(m) +
           EDIT_FIELDS.map(function (f) { return editCell(m, f); }).join('') +
           '<div class="num run-cell cell-run">' + esc(cellValue(m, 'run')) + '</div>' +
-          '<div class="num delay-cell cell-delay">' + esc(cellValue(m, 'delay')) + '</div>' +
+          '<div class="num delay-cell cell-delay">' + (function () { var dd = delayDays(m, isoOf(new Date())); return dd === null ? '' : '<span class="delay-badge">' + esc(String(dd)) + '</span>'; })() + '</div>' +
           ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, dim, withFlag, em.icon)) + '</div>';
       }
     });
@@ -784,7 +784,10 @@
       var run = row.querySelector('.run-cell');
       if (run) run.textContent = cellValue(m, 'run');
       var dcell = row.querySelector('.cell-delay');
-      if (dcell) dcell.textContent = cellValue(m, 'delay');
+      if (dcell) {
+        var dd = delayDays(m, isoOf(new Date()));
+        dcell.innerHTML = dd === null ? '' : '<span class="delay-badge">' + esc(String(dd)) + '</span>';
+      }
     });
     updateChangesCounter();
   }
