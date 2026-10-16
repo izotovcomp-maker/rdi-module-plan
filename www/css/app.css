@@ -84,7 +84,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   #chartHead, .row.head, #chartHead .row.head { position: static !important; }
   .name, .h-year, .h-month, .h-title, .h-cell, .chk-cell, .st-cell, .run-cell,
   .cell-dayRun, .cell-dayCheck, .cell-check, .cell-create,
-  .cell-dayEdit, .cell-dayWait, .cell-dayApprove { position: static; }
+  .cell-dayEdit, .cell-dayWait, .cell-dayApprove, .cell-delay { position: static; }
   #chartInner, #chartInner *, .print-legend, .print-legend * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .gantt-bar, .st-badge, .row.stage > div, .h-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .row { break-inside: avoid; }
@@ -161,7 +161,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* Sticky-каскад левого блока: статус и колонки данных правее названия */
 .st-cell,
 .cell-dayRun, .cell-dayCheck, .cell-check, .cell-create,
-.cell-dayEdit, .cell-dayWait, .cell-dayApprove, .run-cell {
+.cell-dayEdit, .cell-dayWait, .cell-dayApprove, .run-cell, .cell-delay {
   position: sticky;
   background: var(--card-bg);
   z-index: 6;
@@ -174,7 +174,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .cell-dayEdit { left: var(--sticky-dayEdit); }
 .cell-dayWait { left: var(--sticky-dayWait); }
 .cell-dayApprove { left: var(--sticky-dayApprove); }
-.run-cell { left: var(--sticky-run); border-right: 1px solid var(--ink); font-size: 11px; }
+.run-cell { left: var(--sticky-run); font-size: 11px; }
 /* Шапка: sticky в двух осях (top от .h-year/.h-month/.h-title + left) */
 .h-cell.col-status { left: var(--sticky-status); }
 .h-cell.col-dayRun { left: var(--sticky-dayRun); }
@@ -184,7 +184,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .h-cell.col-dayEdit { left: var(--sticky-dayEdit); }
 .h-cell.col-dayWait { left: var(--sticky-dayWait); }
 .h-cell.col-dayApprove { left: var(--sticky-dayApprove); }
-.h-cell.col-run { left: var(--sticky-run); border-right: 1px solid var(--ink); }
+.h-cell.col-run { left: var(--sticky-run); }
+.cell-delay { left: var(--sticky-delay); border-right: 1px solid var(--ink); font-size: 11px; }
+.h-cell.col-delay { left: var(--sticky-delay); border-right: 1px solid var(--ink); }
 .h-cell.name { left: var(--sticky-name); }
 
 /* Строки данных — единая высота (--row-h задаётся в .row, одинакова для этапов и модулей) */
@@ -226,6 +228,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .gantt-bar.accent { background: var(--accent); border-color: var(--ink); z-index: 2; }
 /* Вторичные полосы — другой акцент (warn), тоньше основной */
 .gantt-bar.secondary { background: var(--warn); border-color: var(--ink); height: 8px; z-index: 1; }
+/* Просрочка согласования — красная полоса (дизайн krasnaya-polosa-prosrochki) */
+.gantt-bar.delay { background: rgba(213, 0, 0, .75); }
 /* Завершённые модули (до первого незавершённого / все при завершённой сделке) — светлее */
 .gantt-bar.dimmed { opacity: .35; }
 /* Флаг «все модули завершены» — в конце последней полосы */

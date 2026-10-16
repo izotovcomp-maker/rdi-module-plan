@@ -250,12 +250,16 @@
       STATUS_ORDER = G.STATUS_ORDER, STATUS_COMPLETED = G.STATUS_COMPLETED,
       STATUS_DARK_BG = G.STATUS_DARK_BG, DUR_KEYS = G.DUR_KEYS,
       barsForModule = G.barsForModule, seedZeroDurations = G.seedZeroDurations,
-      validateEdits = G.validateEdits;
+      delayDays = G.delayDays, validateEdits = G.validateEdits;
 
   function cellValue(m, key) {
     if (key === 'title') return m.title;
     if (key === 'check' || key === 'create') return m[key] ? fmtD(parseD(m[key])) : '—';
     if (key === 'run') return runDays(m) === '' ? '—' : runDays(m);
+    if (key === 'delay') {
+      var dd = delayDays(m, isoOf(new Date()));
+      return dd === null ? '—' : String(dd);
+    }
     return (m.check && m.create) ? String(m[key]) : '—';
   }
 
@@ -264,6 +268,7 @@
     if (key === 'status') return STATUS_ORDER.indexOf(m.status);
     if (key === 'check' || key === 'create') return m[key] || null;
     if (key === 'run') { var r = runDays(m); return r === '' ? null : r; }
+    if (key === 'delay') return delayDays(m, isoOf(new Date()));
     return (m.check && m.create) ? m[key] : null;
   }
 
@@ -513,8 +518,8 @@
     { key: 'dayApprove', type: 'number' }
   ];
 
-  var STICKY_W = [210, 46, 34, 34, 68, 68, 34, 34, 34, 34];
-  var STICKY_KEYS = ['name', 'status', 'dayRun', 'dayCheck', 'check', 'create', 'dayEdit', 'dayWait', 'dayApprove', 'run'];
+  var STICKY_W = [210, 46, 34, 34, 68, 68, 34, 34, 34, 34, 34];
+  var STICKY_KEYS = ['name', 'status', 'dayRun', 'dayCheck', 'check', 'create', 'dayEdit', 'dayWait', 'dayApprove', 'run', 'delay'];
 
   function setGridCols(nCols) {
     var lead = state.mode === 'group' ? '30px ' : '';
@@ -549,6 +554,9 @@
 
   function barsFor(m, offsetIso, cols, dim, withFlag, icon) {
     var bars = barsForModule(m, deal.stageColors);
+    // Просрочка согласования: days > 0 (при 0 рисовать негде — только колонка 🔴 0).
+    var db = GanttLogic.delayBar(m, isoOf(new Date()), offsetIso, state.step);
+    if (db && db.days > 0) bars.push(db);
     // Пиксельная разкладка (план T8): пропорциональная ширина, min 3px, сдвиг
     // коротких полос внутри колонки — вместо прежних колонок barColumns.
     var laid = layoutBars(bars, {
@@ -558,9 +566,11 @@
     var html = visible.map(function (p) {
       // Цвет полосы — по палитре стадий из Б24 (p.color — КОД стадии);
       // классы accent/secondary/dimmed не трогаем — они дают затемнение.
-      return '<div class="gantt-bar ' + p.kind + (dim ? ' dimmed' : '') + '" style="left:' + p.leftPx + 'px;width:' +
-        Math.max(3, p.widthPx - 2) + 'px;background:' + esc(deal.stageColors[p.color] || '#ccc') + '" title="' +
-        esc(p.title + ': ' + fmtD(parseD(p.start)) + '–' + fmtD(parseD(p.end))) + '"></div>';
+      // Полоса delay: цвет задаёт CSS (.gantt-bar.delay), inline-background не нужен.
+      var style = 'left:' + p.leftPx + 'px;width:' + Math.max(3, p.widthPx - 2) + 'px';
+      if (p.kind !== 'delay') style += ';background:' + esc(deal.stageColors[p.color] || '#ccc');
+      return '<div class="gantt-bar ' + p.kind + (dim ? ' dimmed' : '') + '" style="' + style +
+        '" title="' + esc(p.title + ': ' + fmtD(parseD(p.start)) + '–' + fmtD(parseD(p.end))) + '"></div>';
     }).join('');
     var flag = '';
     if (withFlag && visible.length) {
@@ -609,7 +619,8 @@
     { label: 'ДК', cls: 'num', key: 'dayEdit', title: 'Дни на Корректировку — календарных дней после Разработки' },
     { label: 'ДО', cls: 'num', key: 'dayWait', title: 'Дни на Ожидание — календарных дней после Корректировки' },
     { label: 'ДС', cls: 'num', key: 'dayApprove', title: 'Дни на Согласование — календарных дней после Ожидания' },
-    { label: 'Р', cls: 'num', key: 'run', title: 'Длительность разработки — календарных дней от Рассмотрения до Разработки' }
+    { label: 'Р', cls: 'num', key: 'run', title: 'Длительность разработки — календарных дней от Рассмотрения до Разработки' },
+    { label: '🔴', cls: 'num', key: 'delay', title: 'Задержка согласования — дней от даты согласования до сегодня' }
   ];
   var NAME_TITLE = 'Название модуля: код объекта, номер, шифр раздела. Сортировка — клик по заголовку колонки.';
 
@@ -688,7 +699,7 @@
           /* 9 колонок: Статус, ДЗ, ДР, Рассмотр., Разработка (kp-note «по КП»), ДК, ДО, ДС, Р */
           '<div class="st-cell"></div>' +
           '<div class="num muted-note cell-dayRun"></div><div class="cell-dayCheck"></div><div class="cell-check"></div>' +
-          '<div class="kp-note cell-create">' + esc(df ? fmtDyy(parseD(df)) : '—') + '</div><div class="cell-dayEdit"></div><div class="cell-dayWait"></div><div class="cell-dayApprove"></div><div class="run-cell"></div>' +
+          '<div class="kp-note cell-create">' + esc(df ? fmtDyy(parseD(df)) : '—') + '</div><div class="cell-dayEdit"></div><div class="cell-dayWait"></div><div class="cell-dayApprove"></div><div class="run-cell"></div><div class="cell-delay"></div>' +
           ganttCells(cols, offsetIso) + '</div>';
       } else {
         var m = effModule(r.module, edits);
@@ -704,6 +715,7 @@
           statusBadge(m) +
           EDIT_FIELDS.map(function (f) { return editCell(m, f); }).join('') +
           '<div class="num run-cell cell-run">' + esc(cellValue(m, 'run')) + '</div>' +
+          '<div class="num delay-cell cell-delay">' + esc(cellValue(m, 'delay')) + '</div>' +
           ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, dim, withFlag, em.icon)) + '</div>';
       }
     });
@@ -771,6 +783,8 @@
       row.insertAdjacentHTML('beforeend', ganttCells(cols, offsetIso, barsFor(m, offsetIso, cols, em.dimmedById(m.id), withFlag, em.icon)));
       var run = row.querySelector('.run-cell');
       if (run) run.textContent = cellValue(m, 'run');
+      var dcell = row.querySelector('.cell-delay');
+      if (dcell) dcell.textContent = cellValue(m, 'delay');
     });
     updateChangesCounter();
   }

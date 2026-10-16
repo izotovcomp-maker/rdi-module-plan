@@ -162,6 +162,31 @@ var GanttLogic = (function () {
     return laid;
   }
 
+  /* ── Просрочка согласования (дизайн krasnaya-polosa-prosrochki) ────────── */
+
+  /* Дней задержки: сегодня − approveD, или null — нет просрочки
+     (пустая/будущая approveD, модуль завершён Завр/Анну). */
+  function delayDays(m, todayIso) {
+    if (!m.approveD) return null;
+    if (STATUS_COMPLETED.indexOf(m.status) !== -1) return null;
+    var d = daysBetween(m.approveD, todayIso);
+    return d >= 0 ? d : null;
+  }
+
+  /* Красная полоса: от approveD до правого края колонки «сегодня».
+     days === 0 — полоса не рисуется, но колонка показывает 0. */
+  function delayBar(m, todayIso, offsetIso, step) {
+    var days = delayDays(m, todayIso);
+    if (days === null) return null;
+    var sd = stepDaysOf(step);
+    var span = daysBetween(offsetIso, todayIso);
+    var end = span >= 0
+      ? addDaysIso(offsetIso, (Math.floor(span / sd) + 1) * sd - 1)
+      : todayIso;
+    return { key: 'delay', kind: 'delay', title: 'Просрочка согласования',
+      start: m.approveD, end: end, days: days };
+  }
+
   /* Пустые длительности → 0: мутирует модули (сразу после normalizeModule) и
      дописывает 0 в editsMap[id][k], если ключа там ещё нет (авто-правка на
      отправку). Уже заполненные значения и существующие правки не трогаем. */
@@ -231,6 +256,7 @@ var GanttLogic = (function () {
            yearLabels: yearLabels, monthLabels: monthLabels, STEP_MAP: STEP_MAP, stepDaysOf: stepDaysOf,
            buildCols: buildCols, barColumns: barColumns, defaultOffsetIso: defaultOffsetIso,
            todayIndex: todayIndex, barsForModule: barsForModule, layoutBars: layoutBars,
+           delayDays: delayDays, delayBar: delayBar,
            seedZeroDurations: seedZeroDurations, validateEdits: validateEdits,
            PRINT_FORMATS: PRINT_FORMATS, mmToPx: mmToPx, pageHeightMm: pageHeightMm, paginateRows: paginateRows };
 })();
